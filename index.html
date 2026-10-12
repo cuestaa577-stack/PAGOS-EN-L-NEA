@@ -3,75 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Paga en Línea - Chile a Colombia</title>
+    <title>Pago Transfronterizo - CLP a COP</title>
+    <!-- Librería externa para generar el código QR en tiempo real -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; background: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
-        h2 { text-align: center; color: #333; }
-        label { display: block; margin-top: 15px; font-weight: bold; color: #555; }
-        input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
-        button { width: 100%; background: #007bff; color: white; border: none; padding: 12px; margin-top: 20px; border-radius: 6px; font-size: 16px; cursor: pointer; }
-        button:hover { background: #0056b3; }
-        #resultado { margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 6px; display: none; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); width: 100%; max-width: 440px; }
+        .brand { text-align: center; margin-bottom: 20px; }
+        .brand h2 { margin: 0; color: #1a202c; font-size: 24px; font-weight: 700; }
+        .brand p { color: #718096; font-size: 14px; margin-top: 5px; }
+        label { display: block; margin-top: 15px; font-weight: 600; color: #4a5568; font-size: 14px; }
+        input { width: 100%; padding: 12px; margin-top: 6px; border: 1px solid #cbd5e0; border-radius: 8px; box-sizing: border-box; font-size: 15px; }
+        input:focus { border-color: #3182ce; outline: none; }
+        button { width: 100%; background: #2b6cb0; color: white; border: none; padding: 14px; margin-top: 22px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #2c5282; }
+        
+        /* Contenedor del resultado y del QR */
+        #resultado { margin-top: 25px; padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; display: none; text-align: center; }
+        .ref-box { background: #edf2f7; padding: 8px 12px; border-radius: 6px; font-family: monospace; font-weight: bold; font-size: 16px; color: #2d3748; letter-spacing: 1px; display: inline-block; margin: 8px 0; }
+        #qrcode { display: flex; justify-content: center; margin: 15px 0; }
+        .btn-pay { background: #38a169; text-decoration: none; display: block; color: white; padding: 12px; border-radius: 8px; font-weight: bold; margin-top: 15px; }
+        .btn-pay:hover { background: #2f855a; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>Pago Transfronterizo</h2>
+    <div class="brand">
+        <h2>Pago Transfronterizo</h2>
+        <p>Convertidor & Pasarela CLP ➔ COP</p>
+    </div>
+
     <form id="paymentForm">
-        <label>Nombre del Cliente:</label>
+        <label>Nombre Completo:</label>
         <input type="text" id="nombre" required placeholder="Ej. Juan Pérez">
 
         <label>Correo Electrónico:</label>
         <input type="email" id="email" required placeholder="correo@ejemplo.com">
 
-        <label>Monto a pagar en Pesos Chilenos (CLP):</label>
-        <input type="number" id="montoCLP" required placeholder="Ej. 10000">
+        <label>Monto a Pagar (CLP - Pesos Chilenos):</label>
+        <input type="number" id="montoCLP" required placeholder="Ej. 26000">
 
-        <button type="submit">Pagar y Convertir</button>
+        <button type="submit" id="btnPagar">Generar Código y QR de Pago</button>
     </form>
 
-    <div id="resultado"></div>
-</div>
-
-<script>
-    const form = document.getElementById('paymentForm');
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    <div id="
         
-        const nombreCliente = document.getElementById('nombre').value;
-        const emailCliente = document.getElementById('email').value;
-        const montoCLP = document.getElementById('montoCLP').value;
-        const resultadoDiv = document.getElementById('resultado');
-
-        resultadoDiv.style.display = 'block';
-        resultadoDiv.innerHTML = 'Procesando conversión y pago...';
-
-        try {
-            const respuesta = await fetch('https://pagos-en-l-nea.onrender.com/api/pagar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ montoCLP, nombreCliente, emailCliente })
-            });
-
-            const datos = await respuesta.json();
-
-            if (datos.exito) {
-                resultadoDiv.innerHTML = `
-                    <strong>¡Éxito!</strong><br>
-                    Pagó: $${datos.transaccion.montoCLP} CLP<br>
-                    Tasa aplicada: ${datos.transaccion.tasaAplicada}<br>
-                    <strong>Equivalente en Colombia: $${datos.transaccion.montoCOP} COP</strong>
-                `;
-            } else {
-                resultadoDiv.innerHTML = 'Error al procesar el pago.';
-            }
-        } catch (error) {
-            resultadoDiv.innerHTML = 'Error de conexión con el servidor.';
-        }
-    });
-</script>
-
-</body>
-</html>
