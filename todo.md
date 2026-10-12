@@ -16,7 +16,7 @@
 - [x] Reescribir .env.example (DEMO_MODE, AUTH_SECRET, ADMIN_*, REQUIRE_LOGIN_TO_PAY)
 
 ## Respaldo
-- [x] git commit + push al repositorio de GitHub (commit 82ad6ab: código; commit daa74dc: documentación)
+- [x] git commit + push al repositorio de GitHub (82ad6ab código; daa74dc docs; 85337be tests; f915522 billetera)
 
 ## Pruebas
 - [x] Arrancar servidor en modo NO_CONFIG (sin llaves) → 503, sin simulación
@@ -26,6 +26,14 @@
 - [x] Ejecutar tests existentes (test-wompi.js) — 9 PASS
 - [x] Probar REQUIRE_LOGIN_TO_PAY=true (401 sin sesión)
 - [x] Verificar UI en navegador (index, modal, resultado, mis pagos, admin)
+
+## Corrección: "no aparece la parte donde está el dinero"
+- [x] Primer usuario registrado = COMERCIO (admin) automáticamente (sin ADMIN_EMAIL)
+- [x] Al arrancar, si no hay admin, promover al usuario más antiguo a comercio
+- [x] Añadir tarjeta "Mi billetera (comercio)" en la página principal (saldo, recaudado, Nequi)
+- [x] Añadir botón "Mi saldo" en la barra superior del comercio
+- [x] Mejorar el aviso de "cobros no activados" y el mensaje del panel
+- [x] Verificado: registro → role admin, /api/admin/wallet ok, tarjeta visible en la web
 
 ## Entrega
 - [x] Actualizar README/DEPLOY con las novedades
