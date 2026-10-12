@@ -1,0 +1,155 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Pagar servicio | Chile &amp; Colombia</title>
+  <meta name="description" content="Paga tu servicio en efectivo con un código (Servipag / Sencillito) o con tarjeta de crédito o débito. Chile y Colombia." />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#2563eb" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Pagos" />
+
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .paises { display:flex; gap:12px; margin-bottom:14px; }
+    .paises .p { flex:1; border:1.5px solid var(--gris-300); border-radius:12px; padding:12px; cursor:pointer; text-align:center; transition:all .15s; }
+    .paises .p:hover { border-color:var(--azul); }
+    .paises .p.sel { border-color:var(--azul); background:#eff6ff; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+    .paises .p .flag { font-size:24px; }
+    .paises .p .tt { font-weight:700; font-size:14px; margin-top:4px; color:var(--gris-900); }
+    .paises .p .ss { font-size:11px; color:var(--gris-500); }
+    .metodos { display:flex; gap:12px; margin-bottom:4px; }
+    .metodos .op { flex:1; border:1.5px solid var(--gris-300); border-radius:12px; padding:14px; cursor:pointer; text-align:center; transition:all .15s; }
+    .metodos .op:hover { border-color:var(--azul); }
+    .metodos .op.sel { border-color:var(--azul); background:#eff6ff; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+    .metodos .op .ic { font-size:22px; }
+    .metodos .op .tt { font-weight:700; font-size:14px; margin-top:6px; color:var(--gris-900); }
+    .metodos .op .ss { font-size:11.5px; color:var(--gris-500); margin-top:3px; line-height:1.35; }
+    .liquidacion { display:flex; align-items:center; gap:8px; background:#f5f3ff; color:#5b21b6; border:1px solid #ddd6fe; border-radius:10px; padding:10px 12px; font-size:12.5px; font-weight:600; margin-top:12px; }
+  </style>
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
+</head>
+<body>
+  <div class="wrap">
+
+    <div class="brand">
+      <div class="logo">$</div>
+      <h1 id="tituloComercio">Pago de Servicios</h1>
+      <p>Chile &amp; Colombia &middot; paga como te sea más fácil</p>
+    </div>
+
+    <!-- Banner para instalar la app (PWA) -->
+    <div class="instalar-barra no-print" id="instalarBarra">
+      <div class="ib-ic">📲</div>
+      <div class="ib-txt">
+        <b>Instala la app</b>
+        <span>Úsala desde tu pantalla de inicio</span>
+      </div>
+      <button type="button" id="btnInstalar">Instalar</button>
+      <button type="button" class="ib-cerrar" id="btnCerrarInstalar" aria-label="Cerrar">✕</button>
+    </div>
+
+    <!-- Ayuda para instalar en iPhone (iOS no muestra el banner automático) -->
+    <div class="ios-ayuda no-print" id="iosAyuda">
+      <b>Para instalar en iPhone/iPad:</b> toca el botón <b>Compartir</b> (⬆️) en Safari y elige
+      <b>“Añadir a pantalla de inicio”</b>.
+    </div>
+
+    <div class="card">
+      <div id="avisoModo"></div>
+
+      <form id="paymentForm" autocomplete="on">
+        <label>¿Desde qué país pagas?</label>
+        <div class="paises" id="paises">
+          <div class="p" data-pais="CL">
+            <div class="flag">&#127464;&#127473;</div>
+            <div class="tt">Chile</div>
+            <div class="ss">Efectivo o tarjeta</div>
+          </div>
+          <div class="p sel" data-pais="CO">
+            <div class="flag">&#127464;&#127476;</div>
+            <div class="tt">Colombia</div>
+            <div class="ss">Tarjeta, Nequi o PSE</div>
+          </div>
+        </div>
+
+        <label>¿Cómo quieres pagar?</label>
+        <div class="metodos" id="metodos">
+          <div class="op" data-metodo="efectivo" id="opEfectivo">
+            <div class="ic">&#128181;</div>
+            <div class="tt">Efectivo</div>
+            <div class="ss" id="ssEfectivo">Con un código en Servipag / Sencillito</div>
+          </div>
+          <div class="op sel" data-metodo="tarjeta" id="opTarjeta">
+            <div class="ic">&#128179;</div>
+            <div class="tt">Tarjeta / Nequi</div>
+            <div class="ss" id="ssTarjeta">Crédito o débito, pago seguro</div>
+          </div>
+        </div>
+
+        <label for="nombre">Nombre completo</label>
+        <input type="text" id="nombre" name="nombre" placeholder="Ej. Juan Pérez" required minlength="3" />
+
+        <label for="email">Correo electrónico</label>
+        <input type="email" id="email" name="email" placeholder="correo@ejemplo.com" required />
+
+        <label for="monto" id="labelMonto">Monto a pagar (COP)</label>
+        <input type="number" id="monto" name="monto" placeholder="Ej. 50000" min="1500" step="1" required />
+        <div class="quick" id="montosRapidos"></div>
+        <p class="hint" id="hintMonto">Mínimo 1.500 COP · Máximo 50.000.000 COP por transacción.</p>
+
+        <button type="submit" class="btn" id="btnPagar">Generar código de pago</button>
+      </form>
+
+      <div id="resultado">
+        <div class="codigo-box">
+          <div class="etiqueta" id="etiquetaCodigo">Tu código de pago</div>
+          <div class="codigo" id="codigoTexto">PAGO-XXXXXX</div>
+          <div class="monto-destacado" id="montoTexto">$0 <span>CLP</span></div>
+          <div style="margin-top:10px" id="estadoWrap"></div>
+        </div>
+
+        <div class="pasos" id="pasos">
+          <h3 id="tituloPasos">¿Cómo pagar en efectivo?</h3>
+          <div class="paso"><div class="num">1</div><p>Presiona <b>&ldquo;Ir a pagar&rdquo;</b> para abrir el checkout y elegir el medio de pago.</p></div>
+          <div class="paso"><div class="num">2</div><p>Recibirás el <b>código</b> por correo y en pantalla.</p></div>
+          <div class="paso"><div class="num">3</div><p>Acude al punto de pago indicado y paga mostrando el código.</p></div>
+          <div class="paso"><div class="num">4</div><p>Al confirmarse el pago, esta página cambia a <b>PAGADO</b> automáticamente.</p></div>
+        </div>
+
+        <a id="linkPagar" class="btn btn-verde" href="#" target="_blank" rel="noopener">Ir a pagar</a>
+        <button type="button" class="btn" id="btnImprimir" style="background:#475569">Imprimir / guardar cupón</button>
+
+        <div class="medios" id="medios">
+          <span>Servipag</span><span>Servipag Express</span><span>Sencillito</span><span>Efectivo</span>
+        </div>
+
+        <div class="liquidacion" id="liquidacion" style="display:none"></div>
+      </div>
+
+      <div class="consulta no-print">
+        <label for="codigoConsulta">¿Ya pagaste? Consulta el estado de tu pedido</label>
+        <div class="row">
+          <input type="text" id="codigoConsulta" placeholder="PAGO-XXXXXX" />
+          <button type="button" class="btn" id="btnConsultar">Consultar</button>
+        </div>
+        <p class="hint" id="consultaMsg"></p>
+      </div>
+    </div>
+
+    <div class="footer">
+      Pagos procesados por pasarelas certificadas PCI-DSS (Flow / Wompi).<br />
+      ¿Dudas? Escribe a soporte del comercio.
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

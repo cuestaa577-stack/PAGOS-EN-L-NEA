@@ -1,14 +1,31 @@
 {
-  "name": "mi-pasarela-pagos",
-  "version": "1.0.0",
-  "description": "Pasarela de pagos propia CLP a COP",
+  "name": "pagos-cl-co",
+  "version": "3.0.0",
+  "description": "Pasarela de pagos para servicios: Chile (Flow: efectivo con codigo Servipag/Sencillito y tarjeta) y Colombia (Wompi: tarjeta, Nequi, PSE) con liquidacion a Nequi. App web instalable (PWA).",
   "main": "server.js",
+  "type": "commonjs",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test-wompi.js"
   },
+  "keywords": [
+    "pagos",
+    "flow",
+    "wompi",
+    "nequi",
+    "servipag",
+    "sencillito",
+    "chile",
+    "colombia",
+    "pwa"
+  ],
+  "author": "",
+  "license": "MIT",
   "dependencies": {
-    "axios": "^1.6.0",
+    "axios": "^1.7.7",
     "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0"
   }
 }
