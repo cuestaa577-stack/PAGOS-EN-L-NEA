@@ -1,0 +1,46 @@
+# Blueprint para Render.com — publica el backend REAL (Flow + Wompi) con HTTPS en unos clics.
+# 1) Sube este repo a GitHub. 2) En Render: New > Blueprint > elige el repo.
+# 3) Rellena las variables marcadas con sync:false (tus llaves reales).
+services:
+  - type: web
+    name: pagos-cl-co
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/config
+    envVars:
+      # --- URL pública (Render te la da; cámbiala por la tuya) ---
+      - key: PUBLIC_URL
+        sync: false
+      - key: COMMERCE_NAME
+        sync: false
+      # --- Chile: Flow ---
+      - key: FLOW_API_KEY
+        sync: false
+      - key: FLOW_SECRET_KEY
+        sync: false
+      - key: FLOW_ENV
+        value: production
+      # --- Colombia: Wompi ---
+      - key: WOMPI_PUBLIC_KEY
+        sync: false
+      - key: WOMPI_PRIVATE_KEY
+        sync: false
+      - key: WOMPI_INTEGRITY_SECRET
+        sync: false
+      - key: WOMPI_EVENTS_SECRET
+        sync: false
+      - key: WOMPI_ENV
+        value: production
+      # --- Liquidación / Nequi ---
+      - key: SETTLE_TO_NEQUI
+        value: "true"
+      - key: NEQUI_PHONE
+        sync: false
+      - key: NEQUI_NAME
+        sync: false
+      - key: NEQUI_LEGAL_ID
+        sync: false
+      - key: NEQUI_EMAIL
+        sync: false
