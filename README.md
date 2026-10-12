@@ -5,6 +5,11 @@ de forma **legal, real y segura**, y el dinero llega a tu cuenta. Funciona adem�
 como **app web instalable (PWA)**: se puede "Instalar" en el teléfono y quedar
 como una app normal en la pantalla de inicio.
 
+> 🔑 **¿La web dice que "faltan las credenciales de Wompi y de Flow Chile"?**
+> Es correcto: todavía no has pegado tus llaves de comercio. Sigue la guía
+> **[ACTIVACION.md](ACTIVACION.md)** (o, dentro de la web, el enlace
+> **"Ver guía paso a paso"** en el panel del comercio) para activar los cobros reales.
+
 ## ¿Qué puede hacer?
 
 La web muestra **exactamente dos flujos**, uno por país:

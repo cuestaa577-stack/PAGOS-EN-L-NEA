@@ -263,12 +263,15 @@ app.post('/api/auth/registro', rateLimit(20, 60 * 1000), (req, res) => {
     // Si aun no existe ningun COMERCIO (administrador), el primero en registrarse
     // lo sera. Asi el dueño de la web siempre puede ver su billetera y pasar el
     // saldo a Nequi, sin tener que configurar variables de entorno.
+    // Ademas, si el correo coincide con ADMIN_EMAIL, esa cuenta es el comercio.
     const hayAdmin = users.all().some((u) => u.role === 'admin');
+    const esDueno = process.env.ADMIN_EMAIL &&
+      users.normalizeEmail(email) === users.normalizeEmail(process.env.ADMIN_EMAIL);
     const user = users.create({
       nombre,
       email,
       passwordHash: auth.hashPassword(password),
-      role: hayAdmin ? 'user' : 'admin',
+      role: (esDueno || !hayAdmin) ? 'admin' : 'user',
     });
     auth.setSession(res, user);
     return res.json({ ok: true, usuario: auth.publicUser(user) });
@@ -353,6 +356,74 @@ app.get('/api/admin/stats', auth.requireAdmin, (req, res) => {
 // --------------------------- Billetera del comercio --------------------------
 app.get('/api/admin/wallet', auth.requireAdmin, (req, res) => {
   res.json({ ok: true, wallet: wallet.resumen() });
+});
+
+// ------------------- Checklist de activacion de cobros reales ----------------
+// Devuelve, sin exponer NINGUN valor secreto, que requisitos ya estan puestos
+// y cuales faltan para poder cobrar de verdad (Flow en Chile, Wompi en Colombia)
+// y para dispersar el saldo a Nequi (Wompi "Pagos a Terceros").
+const tiene = (v) => Boolean(v && String(v).trim());
+app.get('/api/admin/activacion', auth.requireAdmin, (req, res) => {
+  const env = process.env;
+  const req2 = (clave, nombre, ok, ayuda) => ({ clave, nombre, ok: Boolean(ok), ayuda: ayuda || '' });
+
+  const chile = {
+    pais: 'Chile',
+    pasarela: 'Flow',
+    listo: hasFlowKeys,
+    link: 'https://www.flow.cl',
+    requisitos: [
+      req2('FLOW_API_KEY', 'API Key de Flow', tiene(env.FLOW_API_KEY), 'La copias del panel de Flow (Mis datos / API).'),
+      req2('FLOW_SECRET_KEY', 'Secret Key de Flow', tiene(env.FLOW_SECRET_KEY), 'La copias del panel de Flow (Mis datos / API).'),
+    ],
+  };
+
+  const colombia = {
+    pais: 'Colombia',
+    pasarela: 'Wompi',
+    listo: hasWompiKeys,
+    link: 'https://comercios.wompi.co',
+    requisitos: [
+      req2('WOMPI_PUBLIC_KEY', 'Llave publica', tiene(env.WOMPI_PUBLIC_KEY), 'Empieza por pub_prod_ (o pub_test_).'),
+      req2('WOMPI_PRIVATE_KEY', 'Llave privada', tiene(env.WOMPI_PRIVATE_KEY), 'Empieza por prv_prod_ (o prv_test_).'),
+      req2('WOMPI_INTEGRITY_SECRET', 'Secreto de integridad', tiene(env.WOMPI_INTEGRITY_SECRET), 'Firma los pagos en el checkout.'),
+      req2('WOMPI_EVENTS_SECRET', 'Secreto de eventos (webhook)', tiene(env.WOMPI_EVENTS_SECRET), 'Valida la confirmacion del pago.'),
+    ],
+  };
+
+  const nequi = {
+    pais: 'Nequi (destino del dinero)',
+    pasarela: 'Wompi Pagos a Terceros',
+    listo: settlement.activo,
+    link: 'https://wompi.co',
+    requisitos: [
+      req2('WOMPI_PAYOUTS_API_KEY', 'API Key de Pagos a Terceros', tiene(env.WOMPI_PAYOUTS_API_KEY), 'Se solicita al equipo de Wompi (dispersiones).'),
+      req2('WOMPI_PAYOUTS_USER_PRINCIPAL_ID', 'User Principal ID', tiene(env.WOMPI_PAYOUTS_USER_PRINCIPAL_ID), 'Te lo entrega Wompi al habilitar dispersiones.'),
+      req2('WOMPI_PAYOUTS_ACCOUNT_ID', 'Account ID', tiene(env.WOMPI_PAYOUTS_ACCOUNT_ID), 'Cuenta de dispersion en Wompi.'),
+      req2('NEQUI_PHONE', 'Telefono Nequi', tiene(env.NEQUI_PHONE), 'El celular de tu cuenta Nequi.'),
+      req2('NEQUI_LEGAL_ID', 'Cedula (Nequi)', tiene(env.NEQUI_LEGAL_ID), 'Tu cedula de ciudadania.'),
+      req2('NEQUI_NAME', 'Nombre (Nequi)', tiene(env.NEQUI_NAME), 'El titular de la cuenta Nequi.'),
+    ],
+  };
+
+  const seguridad = {
+    pais: 'Seguridad de sesiones',
+    pasarela: 'Login',
+    listo: tiene(env.AUTH_SECRET) && String(env.AUTH_SECRET).length >= 20,
+    link: '',
+    requisitos: [
+      req2('AUTH_SECRET', 'Clave para firmar sesiones', tiene(env.AUTH_SECRET) && String(env.AUTH_SECRET).length >= 20, 'Cadena larga y aleatoria.'),
+    ],
+  };
+
+  const todoListo = chile.listo && colombia.listo;
+  res.json({
+    ok: true,
+    modo: { CL: MODO_CL, CO: MODO_CO },
+    todoListo,
+    liquidacionNequi: settlement.activo,
+    grupos: { chile, colombia, nequi, seguridad },
+  });
 });
 
 app.post('/api/admin/transferir-nequi', auth.requireAdmin, rateLimit(10, 60 * 1000), async (req, res) => {
@@ -581,9 +652,26 @@ app.post('/demo/pay-wompi', async (req, res) => {
   const email = process.env.ADMIN_EMAIL;
   const password = process.env.ADMIN_PASSWORD;
   try {
-    if (email && password) {
+    if (email) {
       const existente = users.findByEmail(email);
-      if (!existente) {
+      if (existente) {
+        // La cuenta del comercio SIEMPRE debe ser administrador y poder entrar
+        // con la clave configurada. Si ya existe, la promovemos y, si hay una
+        // clave configurada y no coincide, la actualizamos.
+        const patch = {};
+        if (existente.role !== 'admin') patch.role = 'admin';
+        if (password && !auth.verifyPassword(password, existente.passwordHash)) {
+          patch.passwordHash = auth.hashPassword(password);
+        }
+        if (Object.keys(patch).length) {
+          users.update(existente.id, patch);
+          console.log(`  [auth] Comercio asegurado como administrador: ${email}`);
+        } else {
+          console.log(`  [auth] Comercio (administrador) listo: ${email}`);
+        }
+        return;
+      }
+      if (password) {
         users.create({
           nombre: process.env.ADMIN_NAME || 'Administrador',
           email,
@@ -591,14 +679,12 @@ app.post('/demo/pay-wompi', async (req, res) => {
           role: 'admin',
         });
         console.log(`  [auth] Administrador creado: ${email}`);
-      } else if (existente.role !== 'admin') {
-        users.update(existente.id, { role: 'admin' });
-        console.log(`  [auth] Usuario ${email} promovido a administrador.`);
+        return;
       }
-      return;
+      console.warn(`  [auth] ADMIN_EMAIL=${email}: la cuenta aun no existe y no hay ADMIN_PASSWORD para crearla. Se creara al registrarse con ese correo.`);
     }
-    // Sin ADMIN_EMAIL configurado: el primer usuario registrado es el COMERCIO
-    // (administrador), para que vea su billetera y pueda pasar el saldo a Nequi.
+    // Sin ADMIN_EMAIL (o aun sin esa cuenta): el primer usuario registrado es el
+    // COMERCIO (administrador), para que vea su billetera y pase el saldo a Nequi.
     const hayAdmin = users.all().some((u) => u.role === 'admin');
     if (!hayAdmin) {
       const todos = users.all(); // ordenados por fecha (mas reciente primero)

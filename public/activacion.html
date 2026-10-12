@@ -1,0 +1,224 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Activar cobros reales | Guía</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .wrap-guia { max-width: 860px; margin: 0 auto; padding: 24px 18px 70px; }
+    .wrap-guia h1 { font-size: 24px; margin: 8px 0 6px; }
+    .wrap-guia .lead { color: var(--gris-500); font-size: 14px; margin: 0 0 22px; }
+    .guia-sec { background: #fff; border: 1px solid #eef2f7; border-radius: 14px; padding: 22px; box-shadow: var(--sombra); margin-bottom: 18px; }
+    .guia-sec h2 { font-size: 18px; margin: 0 0 10px; }
+    .guia-sec h3 { font-size: 15px; margin: 18px 0 8px; color: var(--gris-900); }
+    .guia-sec p, .guia-sec li { font-size: 14px; line-height: 1.6; color: var(--gris-700); }
+    .guia-sec ol, .guia-sec ul { padding-left: 20px; }
+    .guia-sec code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; background: var(--gris-100); border-radius: 6px; padding: 1px 6px; }
+    .tabla { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+    .tabla th, .tabla td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--gris-100); vertical-align: top; }
+    .tabla th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--gris-500); }
+    .nota { border-left: 4px solid #f59e0b; background: #fffbeb; border-radius: 8px; padding: 12px 16px; font-size: 13.5px; color: #92400e; margin: 12px 0; }
+    .nota.legal { border-color: #7c3aed; background: #f5f3ff; color: #5b21b6; }
+    pre.bloque { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 16px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; }
+    .volver { display: inline-block; margin-bottom: 8px; font-size: 13px; color: #7c3aed; font-weight: 700; text-decoration: none; }
+    .pill { display:inline-block; font-size:12px; font-weight:800; padding:3px 10px; border-radius:999px; background:#dcfce7; color:#166534; }
+  </style>
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
+</head>
+<body>
+
+  <div class="topbar no-print">
+    <div class="topbar-in">
+      <div class="tb-brand">
+        <div class="tb-logo">$</div>
+        <b>Guía de activación</b>
+      </div>
+      <div class="tb-acciones">
+        <a class="tb-btn" href="admin.html">Panel del comercio</a>
+        <a class="tb-btn" href="index.html">Ir a la web</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap-guia">
+    <a class="volver" href="admin.html">← Volver al panel</a>
+    <h1>🔑 Cómo activar los cobros reales</h1>
+    <p class="lead">La web ya está lista. Lo único que falta es pegar <b>tus llaves de comercio</b>
+      (Flow para Chile y Wompi para Colombia) en las variables de entorno de Render.</p>
+
+    <div class="guia-sec">
+      <h2>1. ¿Por qué dice “faltan las credenciales de Wompi y de Flow Chile”?</h2>
+      <p>Porque el sistema tiene 3 modos y ahora mismo está en el más seguro:</p>
+      <table class="tabla">
+        <thead><tr><th>Modo</th><th>Cuándo ocurre</th><th>Qué hace</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill">REAL</span></td><td>Hay llaves de Flow y/o Wompi puestas</td><td><b>Cobra de verdad</b> y mueve dinero real.</td></tr>
+          <tr><td><b>DEMO</b></td><td>No hay llaves y <code>DEMO_MODE=true</code></td><td>Simula el pago (solo para probar).</td></tr>
+          <tr><td><b>NO_CONFIG</b></td><td>No hay llaves y <code>DEMO_MODE=false</code></td><td><b>No cobra nada</b> (error 503). No inventa pagos.</td></tr>
+        </tbody>
+      </table>
+      <p>El aviso que viste es <b>correcto y esperado</b>: todavía no has pegado las llaves reales.
+        La billetera muestra <b>$0</b> porque, al no haber cobros reales, no hay dinero recaudado.
+        En cuanto conectes las llaves y hagas un cobro real, el saldo aparecerá solo.</p>
+      <div class="nota legal">⚠️ <b>Importante (legal):</b> una web <b>no puede</b> custodiar el dinero de
+        otras personas. El dinero lo custodia la <b>pasarela</b> (Flow en Chile, Wompi en Colombia, del
+        grupo Bancolombia). La “billetera” de la web es solo una <b>vista</b> de ese dinero y sirve para
+        <b>ordenar la transferencia a tu Nequi</b>.</div>
+    </div>
+
+    <div class="guia-sec">
+      <h2>2. Chile 🇨🇱 — Pasarela Flow (pago con código alfanumérico)</h2>
+      <p>En Chile el cliente paga <b>en efectivo con un código</b> (Servipag / Sencillito). Eso lo da <b>Flow</b>.</p>
+      <h3>2.1. Regístrate como comercio en Flow</h3>
+      <ol>
+        <li>Entra a <a href="https://www.flow.cl" target="_blank" rel="noopener">https://www.flow.cl</a> y crea una cuenta de comercio.</li>
+        <li>Necesitas <b>RUT</b> y tener el <b>inicio de actividades al día en el SII</b> (Flow lo exige). Si eres persona natural, tu RUT sirve.</li>
+        <li>Completa la validación (datos del negocio y tu cuenta bancaria para depositarte lo recaudado).</li>
+      </ol>
+      <h3>2.2. Copia tus llaves</h3>
+      <ol>
+        <li>Dentro de Flow, ve a <b>Mis datos → API</b> (o “Integración”).</li>
+        <li>Copia <b>API Key</b> → <code>FLOW_API_KEY</code> y <b>Secret Key</b> → <code>FLOW_SECRET_KEY</code>.</li>
+        <li>Para probar usa sandbox; para cobrar de verdad pon <code>FLOW_ENV=production</code>.</li>
+      </ol>
+      <div class="nota">El “código alfanumérico” que le das al cliente <b>lo genera Flow</b> al crear el pago.
+        El cliente <b>no necesita RUT</b> en la web; solo presenta el código donde paga.</div>
+    </div>
+
+    <div class="guia-sec">
+      <h2>3. Colombia 🇨🇴 — Pasarela Wompi (tarjeta → Nequi)</h2>
+      <p>En Colombia el cliente paga con <b>tarjeta débito/crédito Mastercard</b> y el dinero llega a tu <b>Nequi</b>. Eso lo hace <b>Wompi</b>.</p>
+      <h3>3.1. Regístrate como comercio en Wompi</h3>
+      <ol>
+        <li>Entra a <a href="https://comercios.wompi.co" target="_blank" rel="noopener">https://comercios.wompi.co</a> y crea tu cuenta.</li>
+        <li>Necesitas <b>cédula colombiana</b> y hacer el <b>KYC</b> (validación de identidad).</li>
+        <li>Conecta tu <b>cuenta de recaudo</b>: aquí eliges tu <b>Nequi</b>.</li>
+      </ol>
+      <h3>3.2. Copia tus llaves</h3>
+      <ul>
+        <li><b>Llave pública</b> → <code>WOMPI_PUBLIC_KEY</code> (empieza por <code>pub_prod_</code>)</li>
+        <li><b>Llave privada</b> → <code>WOMPI_PRIVATE_KEY</code> (empieza por <code>prv_prod_</code>)</li>
+        <li><b>Secreto de integridad</b> → <code>WOMPI_INTEGRITY_SECRET</code></li>
+        <li><b>Secreto de eventos</b> → <code>WOMPI_EVENTS_SECRET</code></li>
+      </ul>
+      <div class="nota">Para pruebas usa llaves <code>pub_test_</code> / <code>prv_test_</code> y <code>WOMPI_ENV=sandbox</code>.
+        Para cobrar de verdad: <code>WOMPI_ENV=production</code> y llaves <code>_prod_</code>.</div>
+    </div>
+
+    <div class="guia-sec">
+      <h2>4. 💜 Pasar el saldo a Nequi (Wompi “Pagos a Terceros”)</h2>
+      <p>Para que la web pueda <b>dispersar</b> (enviar) el dinero recaudado a tu Nequi automáticamente,
+        Wompi te da acceso a <b>“Pagos a Terceros” / Dispersiones</b>. Esto se <b>solicita al equipo de Wompi</b>.</p>
+      <p>Cuando te lo habiliten, te entregan:</p>
+      <ul>
+        <li><code>WOMPI_PAYOUTS_API_KEY</code> — API Key de dispersiones</li>
+        <li><code>WOMPI_PAYOUTS_USER_PRINCIPAL_ID</code> — User Principal ID</li>
+        <li><code>WOMPI_PAYOUTS_ACCOUNT_ID</code> — Account ID</li>
+      </ul>
+      <p>Y pones los datos de <b>tu cuenta Nequi</b>: <code>NEQUI_PHONE</code>, <code>NEQUI_LEGAL_ID</code>,
+        <code>NEQUI_NAME</code>, <code>NEQUI_EMAIL</code>.</p>
+      <div class="nota">Si aún no tienes “Pagos a Terceros”, la billetera <b>igual muestra el saldo</b>, pero al
+        dar “Transferir a Nequi” dirá <i>“modo pendiente”</i>. Es normal hasta que Wompi te habilite las dispersiones.</div>
+    </div>
+
+    <div class="guia-sec">
+      <h2>5. ⚙️ Pegar las llaves en Render (paso final)</h2>
+      <ol>
+        <li>Entra a <a href="https://dashboard.render.com" target="_blank" rel="noopener">dashboard.render.com</a> y abre tu servicio <b>pagos-en-l-nea</b>.</li>
+        <li>Ve a la pestaña <b>Environment</b> (Variables de entorno).</li>
+        <li>Añade cada variable con su valor (botón <b>Add Environment Variable</b>).</li>
+      </ol>
+      <table class="tabla">
+        <thead><tr><th>Variable</th><th>Valor (ejemplo)</th><th>Para qué</th></tr></thead>
+        <tbody>
+          <tr><td><code>DEMO_MODE</code></td><td><code>false</code></td><td>Apagar el modo de pruebas</td></tr>
+          <tr><td><code>AUTH_SECRET</code></td><td>cadena larga aleatoria</td><td>Firmar las sesiones del login</td></tr>
+          <tr><td><code>FLOW_API_KEY</code></td><td>de Flow</td><td>Cobros Chile</td></tr>
+          <tr><td><code>FLOW_SECRET_KEY</code></td><td>de Flow</td><td>Cobros Chile</td></tr>
+          <tr><td><code>FLOW_ENV</code></td><td><code>production</code></td><td>Cobrar de verdad en Chile</td></tr>
+          <tr><td><code>WOMPI_PUBLIC_KEY</code></td><td><code>pub_prod_…</code></td><td>Cobros Colombia</td></tr>
+          <tr><td><code>WOMPI_PRIVATE_KEY</code></td><td><code>prv_prod_…</code></td><td>Cobros Colombia</td></tr>
+          <tr><td><code>WOMPI_INTEGRITY_SECRET</code></td><td>de Wompi</td><td>Firmar el pago</td></tr>
+          <tr><td><code>WOMPI_EVENTS_SECRET</code></td><td>de Wompi</td><td>Validar el webhook</td></tr>
+          <tr><td><code>WOMPI_ENV</code></td><td><code>production</code></td><td>Cobrar de verdad en Colombia</td></tr>
+          <tr><td><code>WOMPI_PAYOUTS_API_KEY</code></td><td>de Wompi</td><td>Dispersar a Nequi</td></tr>
+          <tr><td><code>WOMPI_PAYOUTS_USER_PRINCIPAL_ID</code></td><td>de Wompi</td><td>Dispersar a Nequi</td></tr>
+          <tr><td><code>WOMPI_PAYOUTS_ACCOUNT_ID</code></td><td>de Wompi</td><td>Dispersar a Nequi</td></tr>
+          <tr><td><code>SETTLE_TO_NEQUI</code></td><td><code>true</code></td><td>Enviar el saldo a Nequi</td></tr>
+          <tr><td><code>NEQUI_PHONE</code></td><td><code>3001234567</code></td><td>Tu Nequi (destino)</td></tr>
+          <tr><td><code>NEQUI_LEGAL_ID</code></td><td><code>1234567890</code></td><td>Tu cédula</td></tr>
+          <tr><td><code>NEQUI_NAME</code></td><td>Tu Nombre</td><td>Titular Nequi</td></tr>
+          <tr><td><code>NEQUI_EMAIL</code></td><td>tucorreo@ejemplo.com</td><td>Correo Nequi</td></tr>
+        </tbody>
+      </table>
+      <p>Para generar una <code>AUTH_SECRET</code> segura, corre en tu computador:</p>
+      <pre class="bloque">node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"</pre>
+      <ol start="4">
+        <li>Pulsa <b>Save Changes</b>. Render <b>reinicia la web sola</b>.</li>
+        <li>Abre el <b>panel del comercio</b> (<code>/admin.html</code>). El aviso rojo desaparece y la
+          sección <b>🔑 Activación de cobros reales</b> se pone en verde. ✅</li>
+      </ol>
+    </div>
+
+    <div class="guia-sec">
+      <h2>6. ✅ Cómo comprobar que quedó bien</h2>
+      <ol>
+        <li>En el panel ya <b>no</b> aparece el aviso de “cobros sin activar”.</li>
+        <li>En <b>🔑 Activación de cobros reales</b> todo sale con <b>✅</b>.</li>
+        <li>Haz una <b>prueba de cobro</b>: Chile → verás el <b>código</b>; Colombia → prueba con una
+          tarjeta de <b>prueba</b> de Wompi y el pago debe salir <b>PAGADO</b>.</li>
+        <li>Cuando un cobro colombiano quede <b>PAGADO</b>, el saldo sube en la billetera y podrás pulsar
+          <b>“Transferir a Nequi”</b>.</li>
+      </ol>
+    </div>
+
+    <div class="guia-sec">
+      <h2>7. ❓ Preguntas frecuentes</h2>
+      <h3>¿Tengo que poner RUT a los clientes de Chile en la web?</h3>
+      <p>No. El cliente chileno paga con el <b>código</b> que le da la web. El RUT solo lo necesitas <b>tú</b>
+        para abrir la cuenta de comercio en Flow.</p>
+      <h3>¿La web guarda el dinero?</h3>
+      <p>No. Lo custodia la pasarela (Flow/Wompi). La web solo muestra el saldo y ordena la transferencia a tu Nequi.</p>
+      <h3>¿Puedo probar sin llaves reales?</h3>
+      <p>Sí: con <code>DEMO_MODE=true</code> la web <b>simula</b> el pago. Para cobrar de verdad, pon las llaves y <code>DEMO_MODE=false</code>.</p>
+      <h3>¿Y si solo tengo Flow (Chile) y todavía no Wompi (Colombia)?</h3>
+      <p>La web funciona igual: Chile cobra de verdad y Colombia queda “sin activar” hasta que pegues las llaves de Wompi. Cada país se activa por separado.</p>
+    </div>
+
+    <div class="guia-sec">
+      <h2>8. 📌 Resumen de variables de entorno</h2>
+      <pre class="bloque"># Modo
+DEMO_MODE=false
+
+# Seguridad (login)
+AUTH_SECRET=&lt;cadena larga y aleatoria&gt;
+
+# Chile — Flow
+FLOW_API_KEY=&lt;de Flow&gt;
+FLOW_SECRET_KEY=&lt;de Flow&gt;
+FLOW_ENV=production
+
+# Colombia — Wompi
+WOMPI_PUBLIC_KEY=pub_prod_...
+WOMPI_PRIVATE_KEY=prv_prod_...
+WOMPI_INTEGRITY_SECRET=&lt;de Wompi&gt;
+WOMPI_EVENTS_SECRET=&lt;de Wompi&gt;
+WOMPI_ENV=production
+
+# Dispersión a Nequi (Wompi Pagos a Terceros)
+WOMPI_PAYOUTS_API_KEY=&lt;de Wompi&gt;
+WOMPI_PAYOUTS_USER_PRINCIPAL_ID=&lt;de Wompi&gt;
+WOMPI_PAYOUTS_ACCOUNT_ID=&lt;de Wompi&gt;
+SETTLE_TO_NEQUI=true
+NEQUI_PHONE=&lt;tu celular Nequi&gt;
+NEQUI_LEGAL_ID=&lt;tu cédula&gt;
+NEQUI_NAME=&lt;tu nombre&gt;
+NEQUI_EMAIL=&lt;tu correo&gt;</pre>
+    </div>
+  </div>
+
+</body>
+</html>

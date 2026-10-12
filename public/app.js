@@ -312,34 +312,40 @@ authModal.addEventListener('click', (e) => { if (e.target === authModal) cerrarM
 
 function pintarSesion() {
   const cont = $('#tbAcciones');
+  if (!cont) return;
   const esComercio = usuario && usuario.role === 'admin';
+  // Helpers a prueba de caché vieja (si un elemento aún no existe, no rompemos).
+  const mostrar = (sel, on) => { const el = $(sel); if (el) el.style.display = on ? 'block' : 'none'; };
   if (usuario) {
     cont.innerHTML =
       '<span class="tb-user">👤 ' + escapar(usuario.nombre) + '</span>' +
       '<button type="button" class="tb-btn" id="tbMisPagos">Mis pagos</button>' +
       (esComercio ? '<button type="button" class="tb-btn tb-btn-primario" id="tbMiSaldo">Mi saldo</button>' : '') +
       '<button type="button" class="tb-btn" id="tbSalir">Salir</button>';
-    $('#tbMisPagos').addEventListener('click', () => {
-      $('#misPagosCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const bMisPagos = $('#tbMisPagos');
+    if (bMisPagos) bMisPagos.addEventListener('click', () => {
+      const el = $('#misPagosCard'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
-    if (esComercio) {
-      $('#tbMiSaldo').addEventListener('click', () => {
-        $('#billeteraCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const bMiSaldo = $('#tbMiSaldo');
+    if (esComercio && bMiSaldo) {
+      bMiSaldo.addEventListener('click', () => {
+        const el = $('#billeteraCard'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     }
-    $('#tbSalir').addEventListener('click', cerrarSesion);
-    $('#mpUsuario').textContent = usuario.email;
-    $('#misPagosCard').style.display = 'block';
-    $('#billeteraCard').style.display = esComercio ? 'block' : 'none';
+    const bSalir = $('#tbSalir');
+    if (bSalir) bSalir.addEventListener('click', cerrarSesion);
+    const mpU = $('#mpUsuario'); if (mpU) mpU.textContent = usuario.email;
+    mostrar('#misPagosCard', true);
+    mostrar('#billeteraCard', esComercio);
     if (esComercio) cargarBilletera();
   } else {
     cont.innerHTML =
       '<button type="button" class="tb-btn" id="tbLogin">Iniciar sesión</button>' +
       '<button type="button" class="tb-btn tb-btn-primario" id="tbRegistro">Crear cuenta</button>';
-    $('#tbLogin').addEventListener('click', () => abrirModal('login'));
-    $('#tbRegistro').addEventListener('click', () => abrirModal('registro'));
-    $('#misPagosCard').style.display = 'none';
-    $('#billeteraCard').style.display = 'none';
+    const bLogin = $('#tbLogin'); if (bLogin) bLogin.addEventListener('click', () => abrirModal('login'));
+    const bReg = $('#tbRegistro'); if (bReg) bReg.addEventListener('click', () => abrirModal('registro'));
+    mostrar('#misPagosCard', false);
+    mostrar('#billeteraCard', false);
   }
 }
 

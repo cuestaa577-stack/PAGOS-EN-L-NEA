@@ -23,11 +23,11 @@ services:
       - key: REQUIRE_LOGIN_TO_PAY
         value: "false"
       - key: ADMIN_EMAIL
-        sync: false
+        value: cuestaa577@gmail.com
       - key: ADMIN_PASSWORD
         sync: false
       - key: ADMIN_NAME
-        value: Administrador
+        value: Comercio
       # --- Chile: Flow ---
       - key: FLOW_API_KEY
         sync: false

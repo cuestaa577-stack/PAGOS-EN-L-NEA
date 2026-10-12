@@ -62,7 +62,7 @@ function fecha(ms) {
 
   $('#btnTransferir').addEventListener('click', transferir);
 
-  await Promise.all([cargarStats(), cargarWallet(), cargarOrdenes(), cargarUsuarios()]);
+  await Promise.all([cargarStats(), cargarActivacion(), cargarWallet(), cargarOrdenes(), cargarUsuarios()]);
 })();
 
 /* --------------------------------- Stats ----------------------------------- */
@@ -79,7 +79,8 @@ async function cargarStats() {
       if (s.modoCO === 'NO_CONFIG') faltan.push('Colombia (Wompi)');
       $('#avisoConfig').innerHTML =
         '<div class="aviso"><b>Cobros sin activar:</b> faltan las llaves de ' + faltan.join(' y ') +
-        '. Mientras no las conectes, no se generan pagos reales (ni simulados).</div>';
+        '. Mientras no las conectes, no se generan pagos reales (ni simulados). ' +
+        'Abajo tienes la lista exacta de lo que falta (sección <b>🔑 Activación de cobros reales</b>).</div>';
     } else if (s.modoCL === 'DEMO' || s.modoCO === 'DEMO') {
       $('#avisoConfig').innerHTML =
         '<div class="aviso"><b>Modo de pruebas (DEMO_MODE).</b> Los pagos se simulan. ' +
@@ -101,6 +102,51 @@ async function cargarStats() {
 function tarjeta(k, v, sub) {
   return '<div class="stat"><div class="k">' + escapar(k) + '</div><div class="v">' +
     escapar(v) + (sub ? ' <small>' + escapar(sub) + '</small>' : '') + '</div></div>';
+}
+
+/* ------------------------- Activacion de cobros reales --------------------- */
+async function cargarActivacion() {
+  try {
+    const r = await fetch('/api/admin/activacion');
+    const data = await r.json();
+    if (!data.ok) return;
+
+    const cont = $('#activacion');
+    const grupos = data.grupos;
+    const orden = [grupos.chile, grupos.colombia, grupos.nequi, grupos.seguridad];
+
+    // Solo mostramos la seccion si algo falta (o si nada esta listo todavia).
+    const algoFalta = orden.some((g) => !g.listo);
+    if (!algoFalta) {
+      cont.style.display = 'none';
+      return;
+    }
+    cont.style.display = 'block';
+
+    $('#activacionGrupos').innerHTML = orden.map((g) => {
+      const badge = g.listo
+        ? '<span class="act-badge ok">✅ Listo</span>'
+        : '<span class="act-badge no">❌ Faltan llaves</span>';
+      const items = g.requisitos.map((q) => {
+        const ic = q.ok ? '✅' : '❌';
+        const clase = q.ok ? '' : ' class="pend"';
+        const ayuda = q.ayuda ? '<span class="ay">' + escapar(q.ayuda) + '</span>' : '';
+        return '<li' + clase + '><span class="ic">' + ic + '</span><span>' +
+          '<span class="cl">' + escapar(q.clave) + '</span> — ' + escapar(q.nombre) +
+          ayuda + '</span></li>';
+      }).join('');
+      const link = g.link
+        ? ' · <a href="' + escapar(g.link) + '" target="_blank" rel="noopener">Registrarme</a>'
+        : '';
+      return '<div class="act-grupo">' +
+        '<div class="act-cab">' +
+          '<span class="act-tit">' + escapar(g.pais) + ' <small>(' + escapar(g.pasarela) + link + ')</small></span>' +
+          badge +
+        '</div>' +
+        '<ul class="act-lista">' + items + '</ul>' +
+      '</div>';
+    }).join('');
+  } catch (e) { /* silencioso */ }
 }
 
 /* -------------------------------- Billetera -------------------------------- */

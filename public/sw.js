@@ -8,7 +8,7 @@
      para no mostrar estados viejos ni datos sensibles).
    ============================================================================= */
 
-const CACHE = 'pagos-v4';
+const CACHE = 'pagos-v5';
 const APP_SHELL = [
   './index.html',
   './styles.css',
