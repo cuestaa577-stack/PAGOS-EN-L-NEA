@@ -8,9 +8,8 @@
      para no mostrar estados viejos ni datos sensibles).
    ============================================================================= */
 
-const CACHE = 'pagos-v3';
+const CACHE = 'pagos-v4';
 const APP_SHELL = [
-  './',
   './index.html',
   './styles.css',
   './app.js',
@@ -22,7 +21,11 @@ const APP_SHELL = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE).then((cache) =>
+      // Cachea cada recurso por separado e ignora los que fallen, para que la
+      // instalación de la app NUNCA se aborte por un solo archivo faltante.
+      Promise.all(APP_SHELL.map((url) => cache.add(url).catch(() => null)))
+    ).then(() => self.skipWaiting())
   );
 });
 
@@ -41,7 +44,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   // Nunca cachear la API ni peticiones externas.
-  if (url.pathname.startsWith('/api/') || url.origin !== self.location.origin) {
+  if (url.pathname.includes('/api/') || url.origin !== self.location.origin) {
     return; // deja que el navegador lo maneje directo
   }
 
