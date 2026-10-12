@@ -1,0 +1,14 @@
+{
+  "name": "mi-pasarela-pagos",
+  "version": "1.0.0",
+  "description": "Pasarela de pagos propia CLP a COP",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}
