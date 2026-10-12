@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Pagar servicio | Chile &amp; Colombia</title>
-  <meta name="description" content="Paga tu servicio en efectivo con un código (Servipag / Sencillito) o con tarjeta de crédito o débito. Chile y Colombia." />
+  <meta name="description" content="Chile: paga en efectivo con un código (Servipag / Sencillito), sin RUT. Colombia: paga con tarjeta de crédito o débito (Wompi)." />
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.json" />
@@ -25,18 +25,31 @@
     .paises .p .flag { font-size:24px; }
     .paises .p .tt { font-weight:700; font-size:14px; margin-top:4px; color:var(--gris-900); }
     .paises .p .ss { font-size:11px; color:var(--gris-500); }
-    .metodos { display:flex; gap:12px; margin-bottom:4px; }
-    .metodos .op { flex:1; border:1.5px solid var(--gris-300); border-radius:12px; padding:14px; cursor:pointer; text-align:center; transition:all .15s; }
-    .metodos .op:hover { border-color:var(--azul); }
-    .metodos .op.sel { border-color:var(--azul); background:#eff6ff; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
-    .metodos .op .ic { font-size:22px; }
-    .metodos .op .tt { font-weight:700; font-size:14px; margin-top:6px; color:var(--gris-900); }
-    .metodos .op .ss { font-size:11.5px; color:var(--gris-500); margin-top:3px; line-height:1.35; }
+    .metodo-info { display:flex; gap:12px; align-items:flex-start; border:1.5px solid #bfdbfe; background:#eff6ff; border-radius:12px; padding:14px; margin-bottom:4px; }
+    .metodo-info .ic { font-size:24px; line-height:1; }
+    .metodo-info .tt { font-weight:800; font-size:14px; color:var(--azul-osc); }
+    .metodo-info .ss { font-size:12.5px; color:var(--gris-700); margin-top:3px; line-height:1.45; }
     .liquidacion { display:flex; align-items:center; gap:8px; background:#f5f3ff; color:#5b21b6; border:1px solid #ddd6fe; border-radius:10px; padding:10px 12px; font-size:12.5px; font-weight:600; margin-top:12px; }
   </style>
 <script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
 </head>
 <body>
+
+  <!-- ============================ Barra superior ============================ -->
+  <div class="topbar no-print">
+    <div class="topbar-in">
+      <div class="tb-brand">
+        <div class="tb-logo">$</div>
+        <b id="tbNombre">Pago de Servicios</b>
+      </div>
+      <div class="tb-acciones" id="tbAcciones">
+        <!-- Se rellena desde app.js segun la sesion -->
+        <button type="button" class="tb-btn" id="tbLogin">Iniciar sesión</button>
+        <button type="button" class="tb-btn tb-btn-primario" id="tbRegistro">Crear cuenta</button>
+      </div>
+    </div>
+  </div>
+
   <div class="wrap">
 
     <div class="brand">
@@ -56,41 +69,46 @@
       <button type="button" class="ib-cerrar" id="btnCerrarInstalar" aria-label="Cerrar">✕</button>
     </div>
 
-    <!-- Ayuda para instalar en iPhone (iOS no muestra el banner automático) -->
+    <!-- Ayuda para instalar en iPhone -->
     <div class="ios-ayuda no-print" id="iosAyuda">
       <b>Para instalar en iPhone/iPad:</b> toca el botón <b>Compartir</b> (⬆️) en Safari y elige
       <b>“Añadir a pantalla de inicio”</b>.
     </div>
 
+    <!-- ============================ Mis pagos (usuario) ===================== -->
+    <div class="card mis-pagos no-print" id="misPagosCard" style="display:none">
+      <div class="mp-head">
+        <h2>Mis pagos</h2>
+        <span class="mp-user" id="mpUsuario"></span>
+      </div>
+      <div id="misPagosLista" class="mp-lista"></div>
+    </div>
+
+    <!-- ============================ Formulario ============================== -->
     <div class="card">
       <div id="avisoModo"></div>
 
       <form id="paymentForm" autocomplete="on">
         <label>¿Desde qué país pagas?</label>
         <div class="paises" id="paises">
-          <div class="p" data-pais="CL">
-            <div class="flag">&#127464;&#127473;</div>
+          <div class="p sel" data-pais="CL">
+            <div class="flag">🇨🇱</div>
             <div class="tt">Chile</div>
-            <div class="ss">Efectivo o tarjeta</div>
+            <div class="ss">Pago en efectivo con código</div>
           </div>
-          <div class="p sel" data-pais="CO">
-            <div class="flag">&#127464;&#127476;</div>
+          <div class="p" data-pais="CO">
+            <div class="flag">🇨🇴</div>
             <div class="tt">Colombia</div>
-            <div class="ss">Tarjeta, Nequi o PSE</div>
+            <div class="ss">Pago con tarjeta</div>
           </div>
         </div>
 
-        <label>¿Cómo quieres pagar?</label>
-        <div class="metodos" id="metodos">
-          <div class="op" data-metodo="efectivo" id="opEfectivo">
-            <div class="ic">&#128181;</div>
-            <div class="tt">Efectivo</div>
-            <div class="ss" id="ssEfectivo">Con un código en Servipag / Sencillito</div>
-          </div>
-          <div class="op sel" data-metodo="tarjeta" id="opTarjeta">
-            <div class="ic">&#128179;</div>
-            <div class="tt">Tarjeta / Nequi</div>
-            <div class="ss" id="ssTarjeta">Crédito o débito, pago seguro</div>
+        <label>Medio de pago</label>
+        <div class="metodo-info" id="metodoInfo">
+          <div class="ic" id="miIcono">💵</div>
+          <div>
+            <div class="tt" id="miTitulo">Efectivo con código</div>
+            <div class="ss" id="miTexto">Recibes un código y pagas en Servipag / Sencillito. No necesitas RUT en la web.</div>
           </div>
         </div>
 
@@ -100,10 +118,10 @@
         <label for="email">Correo electrónico</label>
         <input type="email" id="email" name="email" placeholder="correo@ejemplo.com" required />
 
-        <label for="monto" id="labelMonto">Monto a pagar (COP)</label>
-        <input type="number" id="monto" name="monto" placeholder="Ej. 50000" min="1500" step="1" required />
+        <label for="monto" id="labelMonto">Monto a pagar (CLP)</label>
+        <input type="number" id="monto" name="monto" placeholder="Ej. 26000" min="350" step="1" required />
         <div class="quick" id="montosRapidos"></div>
-        <p class="hint" id="hintMonto">Mínimo 1.500 COP · Máximo 50.000.000 COP por transacción.</p>
+        <p class="hint" id="hintMonto">Mínimo 350 CLP · Máximo 5.000.000 CLP por transacción.</p>
 
         <button type="submit" class="btn" id="btnPagar">Generar código de pago</button>
       </form>
@@ -118,10 +136,6 @@
 
         <div class="pasos" id="pasos">
           <h3 id="tituloPasos">¿Cómo pagar en efectivo?</h3>
-          <div class="paso"><div class="num">1</div><p>Presiona <b>&ldquo;Ir a pagar&rdquo;</b> para abrir el checkout y elegir el medio de pago.</p></div>
-          <div class="paso"><div class="num">2</div><p>Recibirás el <b>código</b> por correo y en pantalla.</p></div>
-          <div class="paso"><div class="num">3</div><p>Acude al punto de pago indicado y paga mostrando el código.</p></div>
-          <div class="paso"><div class="num">4</div><p>Al confirmarse el pago, esta página cambia a <b>PAGADO</b> automáticamente.</p></div>
         </div>
 
         <a id="linkPagar" class="btn btn-verde" href="#" target="_blank" rel="noopener">Ir a pagar</a>
@@ -147,6 +161,42 @@
     <div class="footer">
       Pagos procesados por pasarelas certificadas PCI-DSS (Flow / Wompi).<br />
       ¿Dudas? Escribe a soporte del comercio.
+    </div>
+  </div>
+
+  <!-- ============================ Modal de sesión =========================== -->
+  <div class="modal-overlay" id="authModal">
+    <div class="modal">
+      <button type="button" class="modal-cerrar" id="modalCerrar" aria-label="Cerrar">✕</button>
+
+      <div class="modal-tabs">
+        <button type="button" class="mtab sel" id="tabLogin" data-tab="login">Iniciar sesión</button>
+        <button type="button" class="mtab" id="tabRegistro" data-tab="registro">Crear cuenta</button>
+      </div>
+
+      <form id="formLogin" class="auth-form">
+        <h3>Inicia sesión</h3>
+        <p class="modal-sub">Accede para ver tus pagos y tu historial.</p>
+        <label for="loginEmail">Correo electrónico</label>
+        <input type="email" id="loginEmail" placeholder="correo@ejemplo.com" required />
+        <label for="loginPass">Contraseña</label>
+        <input type="password" id="loginPass" placeholder="Tu contraseña" required />
+        <button type="submit" class="btn">Entrar</button>
+        <p class="auth-msg" id="loginMsg"></p>
+      </form>
+
+      <form id="formRegistro" class="auth-form" style="display:none">
+        <h3>Crea tu cuenta</h3>
+        <p class="modal-sub">Regístrate para guardar tus pagos de forma segura.</p>
+        <label for="regNombre">Nombre completo</label>
+        <input type="text" id="regNombre" placeholder="Ej. Juan Pérez" required minlength="3" />
+        <label for="regEmail">Correo electrónico</label>
+        <input type="email" id="regEmail" placeholder="correo@ejemplo.com" required />
+        <label for="regPass">Contraseña</label>
+        <input type="password" id="regPass" placeholder="Mínimo 8 caracteres" required minlength="8" />
+        <button type="submit" class="btn">Crear cuenta</button>
+        <p class="auth-msg" id="regMsg"></p>
+      </form>
     </div>
   </div>
 

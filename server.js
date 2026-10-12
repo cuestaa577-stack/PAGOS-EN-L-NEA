@@ -3,11 +3,13 @@
    -----------------------------------------------------------------------------
    CHILE (Flow):
      - EFECTIVO: cupon de pago presencial (Servipag / Servipag Express / Sencillito)
-     - TARJETA : credito/debito en el checkout seguro de Flow
+       Los clientes NO necesitan RUT en la web: solo reciben un codigo.
    COLOMBIA (Wompi):
-     - TARJETA, NEQUI, PSE en el Web Checkout de Wompi
-     - El dinero se dispersa automaticamente a la cuenta Nequi del comercio
-       (Wompi "Pagos a Terceros", bankId NEQUI = 1507)
+     - TARJETA (debito / credito, Mastercard, etc.) en el Web Checkout de Wompi.
+     - El dinero se dispersa a la cuenta Nequi del comercio (Pagos a Terceros).
+
+   Ademas: inicio de sesion de usuarios, panel del comercio con billetera
+   (saldo real) y transferencia real a Nequi.
 
    Seguridad: la web del comercio NUNCA captura datos de tarjeta (PCI-DSS).
    ============================================================================= */
@@ -18,11 +20,15 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 
 const Flow = require('./lib/flow');
 const Wompi = require('./lib/wompi');
 const store = require('./lib/store');
+const users = require('./lib/users');
+const auth = require('./lib/auth');
 const { createSettlement } = require('./lib/settlement');
+const { createWallet } = require('./lib/wallet');
 
 const app = express();
 
@@ -78,13 +84,28 @@ const settlement = createSettlement({
   enabled: process.env.SETTLE_TO_NEQUI !== 'false',
 });
 
-const MODO_CL = hasFlowKeys ? 'REAL' : 'DEMO';
-const MODO_CO = hasWompiKeys ? 'REAL' : 'DEMO';
+// Billetera del comercio (saldo real recaudado + dispersion a Nequi).
+const wallet = createWallet({ store, wompi, payoutsCfg, nequi, activo: settlement.activo });
+
+// Modo de operacion:
+//   REAL      -> hay llaves de comercio, se cobra de verdad.
+//   DEMO      -> SOLO si DEMO_MODE=true (pruebas: simula el pago).
+//   NO_CONFIG -> faltan llaves y no hay demo: NO se puede cobrar (nada de simulacion).
+const DEMO_MODE = process.env.DEMO_MODE === 'true';
+const MODO_CL = hasFlowKeys ? 'REAL' : (DEMO_MODE ? 'DEMO' : 'NO_CONFIG');
+const MODO_CO = hasWompiKeys ? 'REAL' : (DEMO_MODE ? 'DEMO' : 'NO_CONFIG');
+
+// --- Autenticacion / sesiones ---
+// Si es true, para crear un pago hay que haber iniciado sesion.
+const REQUIRE_LOGIN_TO_PAY = process.env.REQUIRE_LOGIN_TO_PAY === 'true';
 
 // ------------------------------- Middleware ----------------------------------
-app.use(cors());
+// CORS con credenciales (para que la cookie de sesion viaje si hay front externo).
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use(auth.attachUser);
 
 // Cabeceras de seguridad basicas
 app.use((req, res, next) => {
@@ -101,11 +122,9 @@ app.use(express.static(path.join(__dirname, 'public'), {
     if (/manifest\.json$/i.test(filePath)) {
       res.setHeader('Content-Type', 'application/manifest+json');
     } else if (/sw\.js$/i.test(filePath)) {
-      // El service worker nunca debe cachearse y controla todo el sitio.
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Service-Worker-Allowed', '/');
     } else if (/\.(html|js|css)$/i.test(filePath)) {
-      // Evita que el navegador sirva versiones viejas de la pagina de pago.
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
   },
@@ -166,7 +185,6 @@ async function liquidarSiCorresponde(ordenId) {
 
 async function confirmarOrdenFlow(orden, statusData) {
   const status = ESTADOS_FLOW[statusData.status] || 'PENDIENTE';
-  // Verifica que el monto coincida (defensa contra manipulacion).
   if (statusData.amount && Number(statusData.amount) !== Number(orden.amount)) {
     return store.updateOrder(orden.id, { status: 'REVISAR', flowStatus: statusData.status, flowRaw: statusData });
   }
@@ -185,7 +203,6 @@ async function confirmarOrdenFlow(orden, statusData) {
 
 async function confirmarOrdenWompi(orden, tx) {
   const status = ESTADOS_WOMPI[tx.status] || 'PENDIENTE';
-  // Verifica el monto (Wompi usa centavos).
   if (tx.amount_in_cents && Number(tx.amount_in_cents) !== Math.round(Number(orden.amount) * 100)) {
     return store.updateOrder(orden.id, { status: 'REVISAR', wompiStatus: tx.status, wompiRaw: tx });
   }
@@ -212,7 +229,7 @@ app.get('/api/config', (req, res) => {
       CL: {
         moneda: 'CLP',
         modo: MODO_CL,
-        metodos: ['efectivo', 'tarjeta'],
+        metodos: ['efectivo'],
         limites: LIMITES.CL,
       },
       CO: {
@@ -226,13 +243,132 @@ app.get('/api/config', (req, res) => {
       activa: settlement.activo,
       destino: 'Nequi',
     },
+    requiereLogin: REQUIRE_LOGIN_TO_PAY,
   });
+});
+
+// ------------------------------ Autenticacion --------------------------------
+app.post('/api/auth/registro', rateLimit(20, 60 * 1000), (req, res) => {
+  try {
+    const { nombre, email, password } = req.body || {};
+    if (!nombre || String(nombre).trim().length < 3) {
+      return res.status(400).json({ ok: false, mensaje: 'Ingresa tu nombre completo.' });
+    }
+    if (!emailValido(email)) {
+      return res.status(400).json({ ok: false, mensaje: 'Ingresa un correo valido.' });
+    }
+    if (!password || String(password).length < 8) {
+      return res.status(400).json({ ok: false, mensaje: 'La contrasena debe tener al menos 8 caracteres.' });
+    }
+    const user = users.create({
+      nombre,
+      email,
+      passwordHash: auth.hashPassword(password),
+      role: 'user',
+    });
+    auth.setSession(res, user);
+    return res.json({ ok: true, usuario: auth.publicUser(user) });
+  } catch (e) {
+    if (e && e.code === 'EMAIL_EXISTS') {
+      return res.status(409).json({ ok: false, mensaje: e.message });
+    }
+    return res.status(500).json({ ok: false, mensaje: 'No se pudo crear la cuenta.' });
+  }
+});
+
+app.post('/api/auth/login', rateLimit(30, 60 * 1000), (req, res) => {
+  const { email, password } = req.body || {};
+  const user = users.findByEmail(email);
+  if (!user || !auth.verifyPassword(password, user.passwordHash)) {
+    return res.status(401).json({ ok: false, mensaje: 'Correo o contrasena incorrectos.' });
+  }
+  auth.setSession(res, user);
+  return res.json({ ok: true, usuario: auth.publicUser(user) });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  auth.clearSession(res);
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  res.json({ ok: true, usuario: auth.publicUser(req.user) });
+});
+
+// ------------------------- Mis ordenes (usuario) -----------------------------
+app.get('/api/mis-ordenes', auth.requireAuth, (req, res) => {
+  const mias = store.all()
+    .filter((o) => o.userId === req.user.id || String(o.email).toLowerCase() === req.user.email)
+    .slice(0, 100)
+    .map((o) => ({
+      codigo: o.codigo,
+      pais: o.pais,
+      metodo: o.metodo,
+      monto: o.amount,
+      moneda: o.currency,
+      status: o.status,
+      createdAt: o.createdAt,
+      settlement: o.settlement || null,
+    }));
+  res.json({ ok: true, ordenes: mias });
+});
+
+// --------------------------- Panel de administracion -------------------------
+app.get('/api/admin/ordenes', auth.requireAdmin, (req, res) => {
+  res.json({ ok: true, ordenes: store.all().slice(0, 200) });
+});
+
+app.get('/api/admin/usuarios', auth.requireAdmin, (req, res) => {
+  res.json({ ok: true, usuarios: users.all() });
+});
+
+app.get('/api/admin/stats', auth.requireAdmin, (req, res) => {
+  const ordenes = store.all();
+  const pagadas = ordenes.filter((o) => o.status === 'PAGADO');
+  const suma = (arr) => arr.reduce((a, o) => a + Number(o.amount || 0), 0);
+  const porPais = {
+    CL: ordenes.filter((o) => o.pais === 'CL').length,
+    CO: ordenes.filter((o) => o.pais === 'CO').length,
+  };
+  res.json({
+    ok: true,
+    stats: {
+      totalOrdenes: ordenes.length,
+      pagadas: pagadas.length,
+      usuarios: users.count(),
+      porPais,
+      recaudadoCLP: suma(pagadas.filter((o) => o.currency === 'CLP')),
+      recaudadoCOP: suma(pagadas.filter((o) => o.currency === 'COP')),
+      modoCL: MODO_CL,
+      modoCO: MODO_CO,
+      liquidacionNequi: settlement.activo,
+    },
+  });
+});
+
+// --------------------------- Billetera del comercio --------------------------
+app.get('/api/admin/wallet', auth.requireAdmin, (req, res) => {
+  res.json({ ok: true, wallet: wallet.resumen() });
+});
+
+app.post('/api/admin/transferir-nequi', auth.requireAdmin, rateLimit(10, 60 * 1000), async (req, res) => {
+  try {
+    const transferencia = await wallet.transferirNequi({ montoCOP: req.body && req.body.montoCOP });
+    res.json({ ok: true, transferencia, wallet: wallet.resumen() });
+  } catch (e) {
+    res.status(400).json({ ok: false, mensaje: e.message || 'No se pudo transferir.' });
+  }
 });
 
 // Crear una orden de pago
 app.post('/api/pagar', rateLimit(20, 60 * 1000), async (req, res) => {
   try {
     const { pais, metodo, nombre, email, monto } = req.body || {};
+
+    // Si el comercio exige sesion para pagar, la comprobamos aqui.
+    if (REQUIRE_LOGIN_TO_PAY && !req.user) {
+      return res.status(401).json({ ok: false, mensaje: 'Inicia sesion para realizar el pago.' });
+    }
 
     if (!['CL', 'CO'].includes(pais)) {
       return res.status(400).json({ ok: false, mensaje: 'Pais no soportado.' });
@@ -252,7 +388,8 @@ app.post('/api/pagar', rateLimit(20, 60 * 1000), async (req, res) => {
       });
     }
 
-    const met = pais === 'CO' ? 'tarjeta' : (metodo === 'efectivo' ? 'efectivo' : 'tarjeta');
+    // Chile = efectivo (codigo). Colombia = tarjeta.
+    const met = pais === 'CO' ? 'tarjeta' : 'efectivo';
     const codigo = generarCodigo(pais);
     const id = crypto.randomUUID();
     const orden = {
@@ -265,18 +402,25 @@ app.post('/api/pagar', rateLimit(20, 60 * 1000), async (req, res) => {
       amount: montoNum,
       currency: lim.moneda,
       status: 'CREADA',
+      userId: req.user ? req.user.id : null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
 
     // ---- CHILE ----
     if (pais === 'CL') {
+      if (MODO_CL === 'NO_CONFIG') {
+        return res.status(503).json({
+          ok: false,
+          mensaje: 'El cobro en Chile aun no esta configurado. El comercio debe conectar sus llaves de Flow para cobrar de verdad.',
+        });
+      }
       if (MODO_CL === 'DEMO') {
-        orden.checkoutUrl = `${PUBLIC_URL}/demo/${met === 'efectivo' ? 'checkout' : 'tarjeta'}?codigo=${codigo}`;
+        orden.checkoutUrl = `${PUBLIC_URL}/demo/checkout?codigo=${codigo}`;
         store.createOrder(orden);
         return res.json({ ok: true, codigo, monto: montoNum, moneda: 'CLP', checkoutUrl: orden.checkoutUrl, modo: 'DEMO' });
       }
-      const paymentMethod = met === 'efectivo' ? FLOW_PM_EFECTIVO : FLOW_PM_TARJETA;
+      const paymentMethod = FLOW_PM_EFECTIVO;
       const flowResp = await flow.createPayment({
         commerceOrder: codigo,
         subject: `${COMMERCE_NAME} - ${codigo}`,
@@ -296,6 +440,12 @@ app.post('/api/pagar', rateLimit(20, 60 * 1000), async (req, res) => {
     }
 
     // ---- COLOMBIA ----
+    if (MODO_CO === 'NO_CONFIG') {
+      return res.status(503).json({
+        ok: false,
+        mensaje: 'El cobro en Colombia aun no esta configurado. El comercio debe conectar sus llaves de Wompi para cobrar de verdad.',
+      });
+    }
     if (MODO_CO === 'DEMO') {
       orden.checkoutUrl = `${PUBLIC_URL}/demo/wompi?codigo=${codigo}`;
       store.createOrder(orden);
@@ -322,7 +472,6 @@ app.get('/api/estado/:codigo', (req, res) => {
   const orden = store.findByCodigo(req.params.codigo);
   if (!orden) return res.status(404).json({ ok: false, mensaje: 'Codigo no encontrado.' });
 
-  // Refresca el estado desde la pasarela si aun esta pendiente.
   if (orden.status !== 'PAGADO' && orden.pais === 'CL' && orden.flowToken && MODO_CL === 'REAL') {
     flow.getStatus(orden.flowToken)
       .then((s) => confirmarOrdenFlow(orden, s))
@@ -386,8 +535,8 @@ app.get('/api/retorno-wompi', (req, res) => {
   res.redirect(`/?codigo=${encodeURIComponent(codigo)}`);
 });
 
-// Listado de ordenes (panel simple)
-app.get('/api/ordenes', (req, res) => {
+// Listado de ordenes (panel simple) — protegido por admin
+app.get('/api/ordenes', auth.requireAdmin, (req, res) => {
   res.json({ ok: true, ordenes: store.all().slice(0, 100) });
 });
 
@@ -396,7 +545,6 @@ app.get('/demo/checkout', (req, res) => res.sendFile(path.join(__dirname, 'publi
 app.get('/demo/tarjeta', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-tarjeta.html')));
 app.get('/demo/wompi', (req, res) => res.sendFile(path.join(__dirname, 'public', 'demo-wompi.html')));
 
-// Simula la confirmacion de un cupon en efectivo (Chile)
 app.post('/demo/pay', async (req, res) => {
   const orden = store.findByCodigo(req.body && req.body.codigo);
   if (!orden) return res.status(404).json({ ok: false, mensaje: 'Orden no encontrada.' });
@@ -404,7 +552,6 @@ app.post('/demo/pay', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Simula el pago con tarjeta (Chile)
 app.post('/demo/pay-card', async (req, res) => {
   const orden = store.findByCodigo(req.body && req.body.codigo);
   if (!orden) return res.status(404).json({ ok: false, mensaje: 'Orden no encontrada.' });
@@ -412,7 +559,6 @@ app.post('/demo/pay-card', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Simula el pago en Colombia (Wompi)
 app.post('/demo/pay-wompi', async (req, res) => {
   const orden = store.findByCodigo(req.body && req.body.codigo);
   if (!orden) return res.status(404).json({ ok: false, mensaje: 'Orden no encontrada.' });
@@ -426,13 +572,38 @@ app.post('/demo/pay-wompi', async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------------------- Administrador inicial (bootstrap) --------------------
+(function bootstrapAdmin() {
+  const email = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
+  if (!email || !password) return;
+  try {
+    const existente = users.findByEmail(email);
+    if (!existente) {
+      users.create({
+        nombre: process.env.ADMIN_NAME || 'Administrador',
+        email,
+        passwordHash: auth.hashPassword(password),
+        role: 'admin',
+      });
+      console.log(`  [auth] Administrador creado: ${email}`);
+    } else if (existente.role !== 'admin') {
+      users.update(existente.id, { role: 'admin' });
+      console.log(`  [auth] Usuario ${email} promovido a administrador.`);
+    }
+  } catch (e) {
+    console.warn('  [auth] No se pudo crear el administrador:', e.message);
+  }
+})();
+
 // --------------------------------- Arranque ----------------------------------
 app.listen(PORT, () => {
   console.log(`\n  ${COMMERCE_NAME} — pagos Chile + Colombia (PWA)`);
   console.log(`  Escuchando en ${PUBLIC_URL}  (puerto ${PORT})`);
   console.log(`  Chile (Flow):   ${MODO_CL}`);
   console.log(`  Colombia (Wompi): ${MODO_CO}`);
-  console.log(`  Liquidacion a Nequi: ${settlement.activo ? 'ACTIVA' : 'SIMULADA'}\n`);
+  console.log(`  Liquidacion a Nequi: ${settlement.activo ? 'ACTIVA' : 'SIMULADA'}`);
+  console.log(`  Login para pagar: ${REQUIRE_LOGIN_TO_PAY ? 'OBLIGATORIO' : 'OPCIONAL'}\n`);
 });
 
 module.exports = app;

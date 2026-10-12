@@ -1,11 +1,11 @@
 /* =============================================================================
-   app.js — Lógica del frontend (Chile + Colombia) + App instalable (PWA)
-   - Selector de PAÍS (CL / CO) y MÉTODO (efectivo / tarjeta)
-   - Envía el formulario al backend (/api/pagar)
-   - Muestra el CÓDIGO de pago y el botón para ir al checkout seguro
-   - Consulta el estado automáticamente (polling) hasta que se pague
-   - Muestra la liquidación a la cuenta Nequi del comercio
-   - Registra el Service Worker y ofrece instalar la app
+   app.js — Lógica del frontend (Chile + Colombia) + sesión + PWA
+   -----------------------------------------------------------------------------
+   DOS FLUJOS EXACTOS:
+     - CHILE     -> SOLO efectivo: se genera un CÓDIGO y se paga en
+                    Servipag / Sencillito. NO se pide RUT en la web.
+     - COLOMBIA  -> SOLO tarjeta (crédito/débito, Mastercard, etc.) por Wompi.
+   Además: inicio de sesión (para ver "Mis pagos"), polling de estado y PWA.
    ============================================================================= */
 
 const $ = (sel) => document.querySelector(sel);
@@ -22,12 +22,12 @@ const liquidacion = $('#liquidacion');
 
 let codigoActual = null;
 let pollTimer = null;
-let pais = 'CO';          // país seleccionado
-let metodo = 'tarjeta';   // método seleccionado
+let pais = 'CL';          // Chile por defecto
 let cfg = null;
+let usuario = null;       // sesión actual (o null)
 
 const MONEDAS = {
-  CL: { code: 'CLP', min: 350, max: 5000000, rapido: [10000, 20000, 26000, 50000], locale: 'es-CL' },
+  CL: { code: 'CLP', min: 350, max: 5000000, rapido: [5000, 10000, 20000, 26000], locale: 'es-CL' },
   CO: { code: 'COP', min: 1500, max: 50000000, rapido: [20000, 50000, 100000, 200000], locale: 'es-CO' },
 };
 
@@ -41,16 +41,36 @@ async function cargarConfig() {
   try {
     const r = await fetch('/api/config');
     cfg = await r.json();
-    if (cfg.comercio) $('#tituloComercio').textContent = cfg.comercio;
-    const demoCL = cfg.paises && cfg.paises.CL && cfg.paises.CL.modo === 'DEMO';
-    const demoCO = cfg.paises && cfg.paises.CO && cfg.paises.CO.modo === 'DEMO';
-    if (demoCL || demoCO) {
-      avisoModo.innerHTML =
-        '<div class="aviso"><b>Modo demostración.</b> El sistema funciona, pero aún no hay llaves de cobro reales para ' +
-        (demoCL && demoCO ? 'ningún país' : demoCL ? 'Chile' : 'Colombia') +
-        '. El pago se simula. Para cobrar de verdad, activa tus credenciales (ver README).</div>';
+    if (cfg.comercio) {
+      $('#tituloComercio').textContent = cfg.comercio;
+      $('#tbNombre').textContent = cfg.comercio;
     }
+    pintarAvisoModo();
   } catch (e) { /* sin config, seguimos */ }
+}
+
+function pintarAvisoModo() {
+  if (!cfg) return;
+  const modoCL = cfg.paises && cfg.paises.CL && cfg.paises.CL.modo;
+  const modoCO = cfg.paises && cfg.paises.CO && cfg.paises.CO.modo;
+  const noConfig = modoCL === 'NO_CONFIG' || modoCO === 'NO_CONFIG';
+  const demo = modoCL === 'DEMO' || modoCO === 'DEMO';
+
+  if (noConfig) {
+    const paises = [];
+    if (modoCL === 'NO_CONFIG') paises.push('Chile');
+    if (modoCO === 'NO_CONFIG') paises.push('Colombia');
+    avisoModo.innerHTML =
+      '<div class="aviso"><b>Cobros aún no activados.</b> El comercio todavía no conecta sus ' +
+      'credenciales de cobro real para ' + paises.join(' y ') + '. No se generan pagos simulados: ' +
+      'cuando el comercio active sus llaves, el cobro funcionará de verdad.</div>';
+  } else if (demo) {
+    avisoModo.innerHTML =
+      '<div class="aviso"><b>Modo de pruebas.</b> El sistema está en modo demostración ' +
+      '(DEMO_MODE). Los pagos se simulan. Para cobrar de verdad, activa las credenciales reales.</div>';
+  } else {
+    avisoModo.innerHTML = '';
+  }
 }
 
 /* ------------------------------ Montos rápidos ---------------------------- */
@@ -83,60 +103,45 @@ function seleccionarPais(p) {
     `Mínimo ${m.min.toLocaleString(m.locale)} ${m.code} · Máximo ${m.max.toLocaleString(m.locale)} ${m.code} por transacción.`;
   pintarMontosRapidos();
 
-  // Colombia: Wompi cobra tarjeta, Nequi y PSE (sin cupón de barrio).
-  const opEfectivo = $('#opEfectivo');
   if (p === 'CO') {
-    opEfectivo.style.display = 'none';
-    seleccionarMetodo('tarjeta');
-    $('#ssTarjeta').textContent = 'Tarjeta, Nequi o PSE';
-    $('#medios').innerHTML = '<span>Tarjeta</span><span>Nequi</span><span>PSE</span><span>Bancolombia</span>';
+    $('#miIcono').textContent = '💳';
+    $('#miTitulo').textContent = 'Tarjeta de crédito o débito';
+    $('#miTexto').textContent = 'Pagas con tarjeta (Mastercard, Visa, etc.) en el checkout seguro de Wompi. El comercio nunca ve los datos de tu tarjeta.';
+    $('#medios').innerHTML = '<span>Tarjeta</span><span>Mastercard</span><span>Visa</span><span>Wompi</span>';
+    $('#etiquetaCodigo').textContent = 'Tu código de pago';
   } else {
-    opEfectivo.style.display = '';
-    $('#ssEfectivo').textContent = 'Con un código en Servipag / Sencillito';
-    $('#ssTarjeta').textContent = 'Crédito o débito, pago seguro';
+    $('#miIcono').textContent = '💵';
+    $('#miTitulo').textContent = 'Efectivo con código';
+    $('#miTexto').textContent = 'Recibes un código y pagas en Servipag / Sencillito. No necesitas RUT en la web.';
     $('#medios').innerHTML = '<span>Servipag</span><span>Servipag Express</span><span>Sencillito</span><span>Efectivo</span>';
+    $('#etiquetaCodigo').textContent = 'Tu código de pago';
   }
   pintarPasos();
 }
 
-/* -------------------------------- Método ---------------------------------- */
-function seleccionarMetodo(met) {
-  metodo = met;
-  document.querySelectorAll('#metodos .op').forEach((el) => {
-    el.classList.toggle('sel', el.dataset.metodo === met);
-  });
-  pintarPasos();
-}
-
+/* -------------------------------- Pasos ----------------------------------- */
 function pintarPasos() {
   const titulo = $('#tituloPasos');
   const pasos = $('#pasos');
   const btn = $('#btnPagar');
   if (!pasos) return;
+
   if (pais === 'CO') {
-    if (titulo) titulo.textContent = '¿Cómo pagar en Colombia?';
+    if (titulo) titulo.textContent = '¿Cómo pagar con tarjeta en Colombia?';
     pasos.innerHTML =
-      '<div class="paso"><div class="num">1</div><p>Presiona <b>&ldquo;Ir a pagar&rdquo;</b> para abrir el checkout seguro de Wompi.</p></div>' +
-      '<div class="paso"><div class="num">2</div><p>Elige <b>tarjeta</b>, <b>Nequi</b> o <b>PSE</b> y completa el pago.</p></div>' +
+      '<div class="paso"><div class="num">1</div><p>Presiona <b>“Ir a pagar”</b> para abrir el checkout seguro de Wompi.</p></div>' +
+      '<div class="paso"><div class="num">2</div><p>Ingresa los datos de tu <b>tarjeta de crédito o débito</b> (Mastercard, Visa, etc.).</p></div>' +
       '<div class="paso"><div class="num">3</div><p>Wompi procesa el pago de forma segura (el comercio nunca ve tu tarjeta).</p></div>' +
       '<div class="paso"><div class="num">4</div><p>Al confirmarse, esta página cambia a <b>PAGADO</b> y el dinero se dispersa a Nequi.</p></div>';
     if (btn) btn.textContent = 'Generar orden de pago';
-  } else if (metodo === 'efectivo') {
-    if (titulo) titulo.textContent = '¿Cómo pagar en efectivo?';
+  } else {
+    if (titulo) titulo.textContent = '¿Cómo pagar en efectivo en Chile?';
     pasos.innerHTML =
-      '<div class="paso"><div class="num">1</div><p>Presiona <b>&ldquo;Ir a pagar&rdquo;</b> para abrir el checkout y elegir <b>Servipag &rarr; Cupón de pago</b> (o Sencillito).</p></div>' +
+      '<div class="paso"><div class="num">1</div><p>Presiona <b>“Ir a pagar”</b> para abrir el checkout y elegir <b>Servipag → Cupón de pago</b> (o Sencillito).</p></div>' +
       '<div class="paso"><div class="num">2</div><p>Recibirás el <b>cupón con tu código</b> por correo y en pantalla.</p></div>' +
       '<div class="paso"><div class="num">3</div><p>Acude a cualquier <b>sucursal Servipag / Servipag Express</b> o <b>Sencillito</b> y paga en efectivo mostrando el código.</p></div>' +
       '<div class="paso"><div class="num">4</div><p>Al confirmarse el pago, esta página cambia a <b>PAGADO</b> automáticamente.</p></div>';
     if (btn) btn.textContent = 'Generar código de pago';
-  } else {
-    if (titulo) titulo.textContent = '¿Cómo pagar con tarjeta?';
-    pasos.innerHTML =
-      '<div class="paso"><div class="num">1</div><p>Presiona <b>&ldquo;Ir a pagar&rdquo;</b> para abrir el checkout seguro de Flow.</p></div>' +
-      '<div class="paso"><div class="num">2</div><p>Ingresa los datos de tu tarjeta de crédito o débito en la página segura.</p></div>' +
-      '<div class="paso"><div class="num">3</div><p>La pasarela certificada PCI-DSS procesa el pago; el comercio nunca ve tu tarjeta.</p></div>' +
-      '<div class="paso"><div class="num">4</div><p>Al confirmarse el pago, esta página cambia a <b>PAGADO</b> automáticamente.</p></div>';
-    if (btn) btn.textContent = 'Ir a pagar con tarjeta';
   }
 }
 
@@ -144,20 +149,22 @@ function pintarPasos() {
 document.querySelectorAll('#paises .p').forEach((el) => {
   el.addEventListener('click', () => seleccionarPais(el.dataset.pais));
 });
-document.querySelectorAll('#metodos .op').forEach((el) => {
-  el.addEventListener('click', () => seleccionarMetodo(el.dataset.metodo));
-});
 
 /* -------------------------------- Enviar ---------------------------------- */
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
+
+  if (cfg && cfg.requiereLogin && !usuario) {
+    abrirModal('login');
+    return;
+  }
+
   btnPagar.disabled = true;
   const textoOriginal = btnPagar.textContent;
   btnPagar.textContent = 'Generando...';
 
   const payload = {
     pais,
-    metodo,
     nombre: $('#nombre').value.trim(),
     email: $('#email').value.trim(),
     monto: Number($('#monto').value),
@@ -172,6 +179,7 @@ form.addEventListener('submit', async (e) => {
     const data = await r.json();
 
     if (!data.ok) {
+      if (r.status === 401) { abrirModal('login'); return; }
       alert(data.mensaje || 'No se pudo generar el pago.');
       return;
     }
@@ -180,12 +188,13 @@ form.addEventListener('submit', async (e) => {
     codigoTexto.textContent = data.codigo;
     montoTexto.innerHTML = fmt(data.monto, data.moneda) + ' <span>' + data.moneda + '</span>';
     linkPagar.href = data.checkoutUrl;
-    linkPagar.textContent = pais === 'CO' ? 'Ir a pagar (Wompi)' : (metodo === 'tarjeta' ? 'Ir a pagar con tarjeta' : 'Ir a pagar');
+    linkPagar.textContent = pais === 'CO' ? 'Ir a pagar con tarjeta (Wompi)' : 'Ir a pagar (Servipag / Sencillito)';
     liquidacion.style.display = 'none';
     resultado.classList.add('visible');
     pintarEstado('CREADA');
     resultado.scrollIntoView({ behavior: 'smooth', block: 'start' });
     iniciarPolling();
+    if (usuario) cargarMisPagos();
   } catch (err) {
     alert('Error de conexión con el servidor.');
   } finally {
@@ -246,7 +255,10 @@ async function consultarEstado() {
       if (data.status === 'PAGADO') pintarLiquidacion(data.settlement);
       if (['PAGADO', 'RECHAZADO', 'ANULADO'].includes(data.status)) {
         detenerPolling();
-        if (data.status === 'PAGADO') linkPagar.style.display = 'none';
+        if (data.status === 'PAGADO') {
+          linkPagar.style.display = 'none';
+          if (usuario) cargarMisPagos();
+        }
       }
     }
   } catch (e) { /* reintenta */ }
@@ -271,6 +283,161 @@ $('#btnConsultar').addEventListener('click', async () => {
 /* -------------------------------- Imprimir -------------------------------- */
 $('#btnImprimir').addEventListener('click', () => window.print());
 
+/* =========================================================================
+   SESIÓN (login / registro / mis pagos)
+   ========================================================================= */
+const authModal = $('#authModal');
+
+function abrirModal(tab) {
+  authModal.classList.add('visible');
+  cambiarTab(tab || 'login');
+}
+function cerrarModal() {
+  authModal.classList.remove('visible');
+  $('#loginMsg').textContent = '';
+  $('#regMsg').textContent = '';
+}
+function cambiarTab(tab) {
+  const esLogin = tab === 'login';
+  $('#tabLogin').classList.toggle('sel', esLogin);
+  $('#tabRegistro').classList.toggle('sel', !esLogin);
+  $('#formLogin').style.display = esLogin ? 'block' : 'none';
+  $('#formRegistro').style.display = esLogin ? 'none' : 'block';
+}
+
+$('#modalCerrar').addEventListener('click', cerrarModal);
+$('#tabLogin').addEventListener('click', () => cambiarTab('login'));
+$('#tabRegistro').addEventListener('click', () => cambiarTab('registro'));
+authModal.addEventListener('click', (e) => { if (e.target === authModal) cerrarModal(); });
+
+function pintarSesion() {
+  const cont = $('#tbAcciones');
+  if (usuario) {
+    cont.innerHTML =
+      '<span class="tb-user">👤 ' + escapar(usuario.nombre) + '</span>' +
+      '<button type="button" class="tb-btn" id="tbMisPagos">Mis pagos</button>' +
+      (usuario.role === 'admin' ? '<a class="tb-btn" href="admin.html">Panel</a>' : '') +
+      '<button type="button" class="tb-btn" id="tbSalir">Salir</button>';
+    $('#tbMisPagos').addEventListener('click', () => {
+      $('#misPagosCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    $('#tbSalir').addEventListener('click', cerrarSesion);
+    $('#mpUsuario').textContent = usuario.email;
+    $('#misPagosCard').style.display = 'block';
+  } else {
+    cont.innerHTML =
+      '<button type="button" class="tb-btn" id="tbLogin">Iniciar sesión</button>' +
+      '<button type="button" class="tb-btn tb-btn-primario" id="tbRegistro">Crear cuenta</button>';
+    $('#tbLogin').addEventListener('click', () => abrirModal('login'));
+    $('#tbRegistro').addEventListener('click', () => abrirModal('registro'));
+    $('#misPagosCard').style.display = 'none';
+  }
+}
+
+async function cargarSesion() {
+  try {
+    const r = await fetch('/api/auth/me');
+    const data = await r.json();
+    usuario = data && data.usuario ? data.usuario : null;
+  } catch (e) {
+    usuario = null;
+  }
+  pintarSesion();
+  if (usuario) cargarMisPagos();
+}
+
+async function cerrarSesion() {
+  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+  usuario = null;
+  pintarSesion();
+}
+
+/* Formulario de login */
+$('#formLogin').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = $('#loginMsg');
+  msg.textContent = 'Entrando...';
+  msg.className = 'auth-msg';
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: $('#loginEmail').value.trim(), password: $('#loginPass').value }),
+    });
+    const data = await r.json();
+    if (!data.ok) { msg.textContent = data.mensaje || 'No se pudo iniciar sesión.'; msg.className = 'auth-msg err'; return; }
+    usuario = data.usuario;
+    pintarSesion();
+    cargarMisPagos();
+    cerrarModal();
+    $('#formLogin').reset();
+  } catch (err) {
+    msg.textContent = 'Error de conexión.'; msg.className = 'auth-msg err';
+  }
+});
+
+/* Formulario de registro */
+$('#formRegistro').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = $('#regMsg');
+  msg.textContent = 'Creando cuenta...';
+  msg.className = 'auth-msg';
+  try {
+    const r = await fetch('/api/auth/registro', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: $('#regNombre').value.trim(),
+        email: $('#regEmail').value.trim(),
+        password: $('#regPass').value,
+      }),
+    });
+    const data = await r.json();
+    if (!data.ok) { msg.textContent = data.mensaje || 'No se pudo crear la cuenta.'; msg.className = 'auth-msg err'; return; }
+    usuario = data.usuario;
+    pintarSesion();
+    cargarMisPagos();
+    cerrarModal();
+    $('#formRegistro').reset();
+  } catch (err) {
+    msg.textContent = 'Error de conexión.'; msg.className = 'auth-msg err';
+  }
+});
+
+/* -------------------------------- Mis pagos ------------------------------- */
+async function cargarMisPagos() {
+  if (!usuario) return;
+  const lista = $('#misPagosLista');
+  lista.innerHTML = '<p class="hint">Cargando tus pagos…</p>';
+  try {
+    const r = await fetch('/api/mis-ordenes');
+    const data = await r.json();
+    if (!data.ok) { lista.innerHTML = '<p class="hint">No se pudieron cargar tus pagos.</p>'; return; }
+    if (!data.ordenes.length) {
+      lista.innerHTML = '<p class="hint">Aún no tienes pagos. Genera uno arriba y aparecerá aquí.</p>';
+      return;
+    }
+    lista.innerHTML = data.ordenes.map((o) => {
+      const est = ESTADO_TXT[o.status] || o.status;
+      const clase = String(o.status || '').toLowerCase();
+      return '<div class="mp-item">' +
+        '<div class="mp-izq"><b>' + escapar(o.codigo) + '</b>' +
+        '<span class="mp-pais">' + (o.pais === 'CO' ? '🇨🇴 Colombia · Tarjeta' : '🇨🇱 Chile · Efectivo') + '</span></div>' +
+        '<div class="mp-der"><span class="mp-monto">' + fmt(o.monto, o.moneda) + ' ' + o.moneda + '</span>' +
+        '<span class="estado ' + clase + '"><span class="dot"></span>' + est + '</span></div>' +
+        '</div>';
+    }).join('');
+  } catch (e) {
+    lista.innerHTML = '<p class="hint">Error al cargar tus pagos.</p>';
+  }
+}
+
+function escapar(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
 /* -------------------------- Auto-consulta por URL ------------------------- */
 (function autoConsulta() {
   const params = new URLSearchParams(location.search);
@@ -292,14 +459,12 @@ const btnInstalar = $('#btnInstalar');
 const btnCerrarInstalar = $('#btnCerrarInstalar');
 const iosAyuda = $('#iosAyuda');
 
-// 1) Registro del Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(() => { /* sin SW, la web igual funciona */ });
   });
 }
 
-// 2) Android/Chrome/Edge: el navegador avisa cuando la app se puede instalar
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
@@ -322,7 +487,6 @@ if (btnCerrarInstalar) {
   });
 }
 
-// 3) iOS (Safari): no existe beforeinstallprompt -> mostramos instrucciones
 (function iosInstallHint() {
   const ua = window.navigator.userAgent || '';
   const esIOS = /iphone|ipad|ipod/i.test(ua);
@@ -334,12 +498,12 @@ if (btnCerrarInstalar) {
   }
 })();
 
-// 4) Si ya quedó instalada, ocultamos el banner
 window.addEventListener('appinstalled', () => {
   if (instalarBarra) instalarBarra.classList.remove('visible');
   deferredPrompt = null;
 });
 
 /* -------------------------------- Arranque -------------------------------- */
-seleccionarPais('CO');
+seleccionarPais('CL');
 cargarConfig();
+cargarSesion();

@@ -1,0 +1,116 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Panel del comercio | Pagos</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .wrap-admin { max-width: 980px; margin: 0 auto; padding: 24px 18px 60px; }
+    .wrap-admin h1 { font-size: 22px; margin: 6px 0 4px; }
+    .wrap-admin .sub { color: var(--gris-500); font-size: 13.5px; margin: 0 0 22px; }
+    .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
+    .stat { background: #fff; border: 1px solid #eef2f7; border-radius: 13px; padding: 16px; box-shadow: var(--sombra); }
+    .stat .k { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--gris-500); font-weight: 700; }
+    .stat .v { font-size: 22px; font-weight: 800; color: var(--gris-900); margin-top: 6px; }
+    .stat .v small { font-size: 12px; color: var(--gris-500); font-weight: 600; }
+    .seccion { background: #fff; border: 1px solid #eef2f7; border-radius: 14px; padding: 20px; box-shadow: var(--sombra); margin-bottom: 20px; }
+    .seccion h2 { font-size: 17px; margin: 0 0 14px; }
+    .billetera { background: linear-gradient(160deg, #f5f3ff, #eef2ff); border: 1px solid #ddd6fe; }
+    .billetera .saldo { font-size: 34px; font-weight: 800; color: #5b21b6; margin: 4px 0 2px; }
+    .billetera .saldo small { font-size: 15px; color: #7c3aed; }
+    .billetera .fila { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--gris-700); }
+    .billetera .fila b { color: var(--gris-900); }
+    .transferir { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+    .transferir input { width: 180px; }
+    .transferir .btn { width: auto; margin-top: 0; padding: 12px 20px; }
+    .btn-morado { background: #7c3aed; }
+    .btn-morado:hover { background: #6d28d9; }
+    .tabla-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--gris-100); white-space: nowrap; }
+    th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--gris-500); }
+    tr:hover td { background: var(--gris-50); }
+    .gate { text-align: center; padding: 40px 20px; }
+    .gate .btn { display: inline-block; width: auto; padding: 13px 26px; margin-top: 16px; }
+    .msg { font-size: 13px; font-weight: 600; margin-top: 10px; }
+    .msg.ok { color: var(--verde-osc); }
+    .msg.err { color: var(--rojo); }
+  </style>
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
+</head>
+<body>
+
+  <div class="topbar no-print">
+    <div class="topbar-in">
+      <div class="tb-brand">
+        <div class="tb-logo">$</div>
+        <b>Panel del comercio</b>
+      </div>
+      <div class="tb-acciones">
+        <a class="tb-btn" href="index.html">Ir a la web</a>
+        <button type="button" class="tb-btn" id="btnSalir">Salir</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap-admin">
+    <div id="gate" class="gate" style="display:none">
+      <h1>Acceso restringido</h1>
+      <p class="sub" id="gateMsg">Debes iniciar sesión como administrador.</p>
+      <a class="btn" href="index.html">Iniciar sesión</a>
+    </div>
+
+    <div id="panel" style="display:none">
+      <h1 id="tituloComercio">Panel del comercio</h1>
+      <p class="sub">Cobros reales, billetera y transferencias a tu cuenta Nequi.</p>
+
+      <div id="avisoConfig"></div>
+
+      <div class="grid-stats" id="stats"></div>
+
+      <div class="seccion billetera">
+        <h2>💜 Billetera del comercio</h2>
+        <div class="k" style="font-size:11.5px;text-transform:uppercase;color:var(--gris-500);font-weight:700">Saldo disponible para pasar a Nequi</div>
+        <div class="saldo" id="saldoDisponible">$0 <small>COP</small></div>
+        <div class="fila">
+          <span>Recaudado (COP): <b id="recaudadoCOP">$0</b></span>
+          <span>Transferido a Nequi: <b id="transferidoCOP">$0</b></span>
+          <span>Recaudado (CLP): <b id="recaudadoCLP">$0</b></span>
+          <span>Nequi destino: <b id="nequiDestino">—</b></span>
+        </div>
+        <div class="transferir">
+          <input type="number" id="montoTransferir" placeholder="Monto COP (vacío = todo)" min="1" />
+          <button type="button" class="btn btn-morado" id="btnTransferir">Transferir a Nequi</button>
+        </div>
+        <p class="hint">El dinero cobrado lo custodia Wompi (grupo Bancolombia). Al transferir, Wompi dispersa ese saldo a tu cuenta Nequi ("Pagos a Terceros").</p>
+        <div class="msg" id="msgTransferir"></div>
+      </div>
+
+      <div class="seccion">
+        <h2>Órdenes recientes</h2>
+        <div class="tabla-wrap">
+          <table>
+            <thead><tr><th>Código</th><th>País</th><th>Método</th><th>Monto</th><th>Estado</th><th>Cliente</th><th>Fecha</th></tr></thead>
+            <tbody id="tablaOrdenes"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="seccion">
+        <h2>Usuarios registrados</h2>
+        <div class="tabla-wrap">
+          <table>
+            <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Registro</th></tr></thead>
+            <tbody id="tablaUsuarios"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>
