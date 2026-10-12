@@ -84,6 +84,25 @@
       <div id="misPagosLista" class="mp-lista"></div>
     </div>
 
+    <!-- ==================== Mi billetera (solo el comercio) ================= -->
+    <div class="card billetera-mini no-print" id="billeteraCard" style="display:none">
+      <div class="mp-head">
+        <h2>💜 Mi billetera (comercio)</h2>
+        <a class="tb-btn" href="admin.html">Abrir panel</a>
+      </div>
+      <div class="bm-saldo">
+        <span class="bm-k">Saldo disponible para pasar a Nequi</span>
+        <span class="bm-v" id="bmSaldo">$0 <small>COP</small></span>
+      </div>
+      <div class="bm-fila">
+        <span>Recaudado (COP): <b id="bmRecaudadoCOP">$0</b></span>
+        <span>Transferido a Nequi: <b id="bmTransferidoCOP">$0</b></span>
+        <span>Recaudado (CLP): <b id="bmRecaudadoCLP">$0</b></span>
+        <span>Nequi destino: <b id="bmNequi">—</b></span>
+      </div>
+      <p class="hint">El dinero cobrado lo custodia la pasarela (Wompi, grupo Bancolombia). Desde el panel lo pasas a tu cuenta Nequi.</p>
+    </div>
+
     <!-- ============================ Formulario ============================== -->
     <div class="card">
       <div id="avisoModo"></div>

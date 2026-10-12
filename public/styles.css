@@ -285,6 +285,15 @@ input:focus {
 .mp-der { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
 .mp-monto { font-size: 13.5px; font-weight: 800; color: var(--gris-900); white-space: nowrap; }
 
+/* --------------------- Billetera del comercio (mini) ---------------------- */
+.billetera-mini { margin-bottom: 18px; background: linear-gradient(160deg, #f5f3ff, #eef2ff); border: 1px solid #ddd6fe; }
+.bm-saldo { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 10px; }
+.bm-k { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: #7c3aed; font-weight: 700; }
+.bm-v { font-size: 30px; font-weight: 800; color: #5b21b6; }
+.bm-v small { font-size: 14px; color: #7c3aed; }
+.bm-fila { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--gris-700); }
+.bm-fila b { color: var(--gris-900); }
+
 /* -------------------------------- Modal ----------------------------------- */
 .modal-overlay {
   display: none;
@@ -325,7 +334,7 @@ input:focus {
 @media print {
   body { background: #fff; }
   .no-print, .consulta, .footer, .instalar-barra, .ios-ayuda, #paymentForm, .brand p,
-  .topbar, .modal-overlay, .mis-pagos { display: none !important; }
+  .topbar, .modal-overlay, .mis-pagos, .billetera-mini { display: none !important; }
   .card { box-shadow: none; border: none; padding: 0; }
   .codigo-box { border: 2px dashed #000; }
 }

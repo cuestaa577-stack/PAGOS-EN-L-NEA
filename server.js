@@ -260,11 +260,15 @@ app.post('/api/auth/registro', rateLimit(20, 60 * 1000), (req, res) => {
     if (!password || String(password).length < 8) {
       return res.status(400).json({ ok: false, mensaje: 'La contrasena debe tener al menos 8 caracteres.' });
     }
+    // Si aun no existe ningun COMERCIO (administrador), el primero en registrarse
+    // lo sera. Asi el dueño de la web siempre puede ver su billetera y pasar el
+    // saldo a Nequi, sin tener que configurar variables de entorno.
+    const hayAdmin = users.all().some((u) => u.role === 'admin');
     const user = users.create({
       nombre,
       email,
       passwordHash: auth.hashPassword(password),
-      role: 'user',
+      role: hayAdmin ? 'user' : 'admin',
     });
     auth.setSession(res, user);
     return res.json({ ok: true, usuario: auth.publicUser(user) });
@@ -576,20 +580,33 @@ app.post('/demo/pay-wompi', async (req, res) => {
 (function bootstrapAdmin() {
   const email = process.env.ADMIN_EMAIL;
   const password = process.env.ADMIN_PASSWORD;
-  if (!email || !password) return;
   try {
-    const existente = users.findByEmail(email);
-    if (!existente) {
-      users.create({
-        nombre: process.env.ADMIN_NAME || 'Administrador',
-        email,
-        passwordHash: auth.hashPassword(password),
-        role: 'admin',
-      });
-      console.log(`  [auth] Administrador creado: ${email}`);
-    } else if (existente.role !== 'admin') {
-      users.update(existente.id, { role: 'admin' });
-      console.log(`  [auth] Usuario ${email} promovido a administrador.`);
+    if (email && password) {
+      const existente = users.findByEmail(email);
+      if (!existente) {
+        users.create({
+          nombre: process.env.ADMIN_NAME || 'Administrador',
+          email,
+          passwordHash: auth.hashPassword(password),
+          role: 'admin',
+        });
+        console.log(`  [auth] Administrador creado: ${email}`);
+      } else if (existente.role !== 'admin') {
+        users.update(existente.id, { role: 'admin' });
+        console.log(`  [auth] Usuario ${email} promovido a administrador.`);
+      }
+      return;
+    }
+    // Sin ADMIN_EMAIL configurado: el primer usuario registrado es el COMERCIO
+    // (administrador), para que vea su billetera y pueda pasar el saldo a Nequi.
+    const hayAdmin = users.all().some((u) => u.role === 'admin');
+    if (!hayAdmin) {
+      const todos = users.all(); // ordenados por fecha (mas reciente primero)
+      const masAntiguo = todos[todos.length - 1];
+      if (masAntiguo) {
+        users.update(masAntiguo.id, { role: 'admin' });
+        console.log(`  [auth] Comercio (administrador) asignado: ${masAntiguo.email}`);
+      }
     }
   } catch (e) {
     console.warn('  [auth] No se pudo crear el administrador:', e.message);

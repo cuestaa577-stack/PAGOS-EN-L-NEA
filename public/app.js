@@ -61,9 +61,9 @@ function pintarAvisoModo() {
     if (modoCL === 'NO_CONFIG') paises.push('Chile');
     if (modoCO === 'NO_CONFIG') paises.push('Colombia');
     avisoModo.innerHTML =
-      '<div class="aviso"><b>Cobros aún no activados.</b> El comercio todavía no conecta sus ' +
-      'credenciales de cobro real para ' + paises.join(' y ') + '. No se generan pagos simulados: ' +
-      'cuando el comercio active sus llaves, el cobro funcionará de verdad.</div>';
+      '<div class="aviso"><b>Cobros aún no activados.</b> Falta conectar las llaves de cobro real de ' +
+      paises.join(' y ') + '. Mientras no se conecten, <b>no se generan pagos</b> (ni simulados). ' +
+      'El comercio debe poner sus llaves de Flow (Chile) y Wompi (Colombia) para cobrar de verdad.</div>';
   } else if (demo) {
     avisoModo.innerHTML =
       '<div class="aviso"><b>Modo de pruebas.</b> El sistema está en modo demostración ' +
@@ -312,18 +312,26 @@ authModal.addEventListener('click', (e) => { if (e.target === authModal) cerrarM
 
 function pintarSesion() {
   const cont = $('#tbAcciones');
+  const esComercio = usuario && usuario.role === 'admin';
   if (usuario) {
     cont.innerHTML =
       '<span class="tb-user">👤 ' + escapar(usuario.nombre) + '</span>' +
       '<button type="button" class="tb-btn" id="tbMisPagos">Mis pagos</button>' +
-      (usuario.role === 'admin' ? '<a class="tb-btn" href="admin.html">Panel</a>' : '') +
+      (esComercio ? '<button type="button" class="tb-btn tb-btn-primario" id="tbMiSaldo">Mi saldo</button>' : '') +
       '<button type="button" class="tb-btn" id="tbSalir">Salir</button>';
     $('#tbMisPagos').addEventListener('click', () => {
       $('#misPagosCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+    if (esComercio) {
+      $('#tbMiSaldo').addEventListener('click', () => {
+        $('#billeteraCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
     $('#tbSalir').addEventListener('click', cerrarSesion);
     $('#mpUsuario').textContent = usuario.email;
     $('#misPagosCard').style.display = 'block';
+    $('#billeteraCard').style.display = esComercio ? 'block' : 'none';
+    if (esComercio) cargarBilletera();
   } else {
     cont.innerHTML =
       '<button type="button" class="tb-btn" id="tbLogin">Iniciar sesión</button>' +
@@ -331,7 +339,27 @@ function pintarSesion() {
     $('#tbLogin').addEventListener('click', () => abrirModal('login'));
     $('#tbRegistro').addEventListener('click', () => abrirModal('registro'));
     $('#misPagosCard').style.display = 'none';
+    $('#billeteraCard').style.display = 'none';
   }
+}
+
+/* --------------------- Billetera del comercio (mini) ---------------------- */
+async function cargarBilletera() {
+  const fCOP = (n) => '$' + Number(n || 0).toLocaleString('es-CO');
+  const fCLP = (n) => '$' + Number(n || 0).toLocaleString('es-CL');
+  try {
+    const r = await fetch('/api/admin/wallet');
+    const data = await r.json();
+    if (!data.ok) return;
+    const w = data.wallet;
+    $('#bmSaldo').innerHTML = fCOP(w.disponibleCOP) + ' <small>COP</small>';
+    $('#bmRecaudadoCOP').textContent = fCOP(w.recaudadoCOP);
+    $('#bmTransferidoCOP').textContent = fCOP(w.transferidoCOP);
+    $('#bmRecaudadoCLP').textContent = fCLP(w.recaudadoCLP);
+    $('#bmNequi').textContent = w.nequi
+      ? (w.nequi.telefono + (w.nequi.nombre ? ' · ' + w.nequi.nombre : ''))
+      : 'sin configurar';
+  } catch (e) { /* silencioso */ }
 }
 
 async function cargarSesion() {

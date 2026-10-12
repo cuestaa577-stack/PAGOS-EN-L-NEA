@@ -45,9 +45,10 @@ function fecha(ms) {
   if (!usuario || usuario.role !== 'admin') {
     $('#gate').style.display = 'block';
     $('#panel').style.display = 'none';
-    $('#gateMsg').textContent = usuario
-      ? 'Tu cuenta no tiene permisos de administrador.'
-      : 'Debes iniciar sesión como administrador.';
+    $('#gateMsg').innerHTML = usuario
+      ? 'Tu cuenta (<b>' + escapar(usuario.email) + '</b>) es de <b>cliente</b>, no del comercio. ' +
+        'Para ver la billetera y pasar el saldo a Nequi, entra con la cuenta del <b>comercio (administrador)</b>.'
+      : 'Debes iniciar sesión con la cuenta del <b>comercio (administrador)</b> para ver la billetera.';
     return;
   }
 
