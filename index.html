@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paga en Línea - Chile a Colombia</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        h2 { text-align: center; color: #333; }
+        label { display: block; margin-top: 15px; font-weight: bold; color: #555; }
+        input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; background: #007bff; color: white; border: none; padding: 12px; margin-top: 20px; border-radius: 6px; font-size: 16px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        #resultado { margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 6px; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Pago Transfronterizo</h2>
+    <form id="paymentForm">
+        <label>Nombre del Cliente:</label>
+        <input type="text" id="nombre" required placeholder="Ej. Juan Pérez">
+
+        <label>Correo Electrónico:</label>
+        <input type="email" id="email" required placeholder="correo@ejemplo.com">
+
+        <label>Monto a pagar en Pesos Chilenos (CLP):</label>
+        <input type="number" id="montoCLP" required placeholder="Ej. 10000">
+
+        <button type="submit">Pagar y Convertir</button>
+    </form>
+
+    <div id="resultado"></div>
+</div>
+
+<script>
+    const form = document.getElementById('paymentForm');
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const nombreCliente = document.getElementById('nombre').value;
+        const emailCliente = document.getElementById('email').value;
+        const montoCLP = document.getElementById('montoCLP').value;
+        const resultadoDiv = document.getElementById('resultado');
+
+        resultadoDiv.style.display = 'block';
+        resultadoDiv.innerHTML = 'Procesando conversión y pago...';
+
+        try {
+            // AQUÍ DEBES CAMBIAR LA URL POR LA QUE TE DÉ RENDER
+            const respuesta = await fetch('https://TU-URL-DE-RENDER.onrender.com/api/pagar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ montoCLP, nombreCliente, emailCliente })
+            });
+
+            const datos = await respuesta.json();
+
+            if (datos.exito) {
+                resultadoDiv.innerHTML = `
+                    <strong>¡Éxito!</strong><br>
+                    Pagó: $${datos.transaccion.montoCLP} CLP<br>
+                    Tasa aplicada: ${datos.transaccion.tasaAplicada}<br>
+                    <strong>Equivalente en Colombia: $${datos.transaccion.montoCOP} COP</strong>
+                `;
+            } else {
+                resultadoDiv.innerHTML = 'Error al procesar el pago.';
+            }
+        } catch (error) {
+            resultadoDiv.innerHTML = 'Error de conexión con el servidor.';
+        }
+    });
+</script>
+
+</body>
+</html>
