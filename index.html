@@ -49,8 +49,7 @@
         resultadoDiv.innerHTML = 'Procesando conversión y pago...';
 
         try {
-            // AQUÍ DEBES CAMBIAR LA URL POR LA QUE TE DÉ RENDER
-            const respuesta = await fetch('https://TU-URL-DE-RENDER.onrender.com/api/pagar', {
+            const respuesta = await fetch('https://pagos-en-l-nea.onrender.com/api/pagar', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ montoCLP, nombreCliente, emailCliente })
