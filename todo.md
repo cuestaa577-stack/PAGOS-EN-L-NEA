@@ -16,7 +16,7 @@
 - [x] Reescribir .env.example (DEMO_MODE, AUTH_SECRET, ADMIN_*, REQUIRE_LOGIN_TO_PAY)
 
 ## Respaldo
-- [ ] git init + commit + push al repositorio de GitHub
+- [x] git commit + push al repositorio de GitHub (commit 82ad6ab: código; commit daa74dc: documentación)
 
 ## Pruebas
 - [x] Arrancar servidor en modo NO_CONFIG (sin llaves) → 503, sin simulación
@@ -28,5 +28,5 @@
 - [x] Verificar UI en navegador (index, modal, resultado, mis pagos, admin)
 
 ## Entrega
-- [ ] Actualizar README/DEPLOY con las novedades
-- [ ] Exponer puerto y entregar preview + resumen
+- [x] Actualizar README/DEPLOY con las novedades
+- [x] Exponer puerto y entregar preview + resumen

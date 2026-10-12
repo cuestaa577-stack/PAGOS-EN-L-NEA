@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Prueba integral de la API (DEMO mode)
 set -e
-BASE="http://localhost:3000"
+BASE="${BASE:-http://localhost:3000}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@demo.com}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin12345}"
 JAR="/tmp/cookies.txt"
 rm -f "$JAR"
 
@@ -67,7 +69,7 @@ echo "9) Login ADMIN"
 echo "=========================================="
 ADMINJAR="/tmp/cookies_admin.txt"; rm -f "$ADMINJAR"
 curl -s -c "$ADMINJAR" -X POST "$BASE/api/auth/login" -H "Content-Type: application/json" \
-  -d '{"email":"admin@test.com","password":"admin12345"}'; echo ""
+  -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}"; echo ""
 
 echo "=========================================="
 echo "10) Admin stats"
